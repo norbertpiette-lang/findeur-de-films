@@ -193,7 +193,9 @@
 
       const fmtH = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); };
       const fmtDur = (m) => Math.floor(m/60) + "h" + String(m%60).padStart(2,"0");
-      const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+      const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      // pour les titres insérés dans les attributs onclick (guillemets simples) : neutralise aussi les apostrophes et backslashes
+      const escAttr = (s) => esc(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'");
 
       const budget = () => state.debutMin !== null && state.coucheMin !== null ? ((state.coucheMin - state.debutMin + 1440) % 1440) - 10 : null;
 
@@ -211,9 +213,9 @@
       const stars = (film) => {
         const r = state.ratings[film.t]?.v ?? null;
         let h = `<div style="display:flex;align-items:center;gap:6px;white-space:nowrap"><div class="stars">`;
-        h += `<button class="${r === 0 ? "thumb-on" : ""}" title="Vraiment pas aimé" onclick="setRating('${esc(film.t)}',0)">👎</button>`;
+        h += `<button class="${r === 0 ? "thumb-on" : ""}" title="Vraiment pas aimé" onclick="setRating('${escAttr(film.t)}',0)">👎</button>`;
         for (let n = 1; n <= 3; n++) {
-          h += `<button class="${r !== null && r >= n ? "on" : ""}" title="${NOTE_LABELS[n]}" onclick="setRating('${esc(film.t)}',${n})">${r !== null && r >= n ? "★" : "☆"}</button>`;
+          h += `<button class="${r !== null && r >= n ? "on" : ""}" title="${NOTE_LABELS[n]}" onclick="setRating('${escAttr(film.t)}',${n})">${r !== null && r >= n ? "★" : "☆"}</button>`;
         }
         h += `</div><span class="starlabel">${r !== null ? NOTE_LABELS[r] : "pas encore noté"}</span></div>`;
         return h;
@@ -280,13 +282,13 @@
           </div>
           <div class="row">
             <div>
-              <button class="toggle ${vu ? "on" : ""}" onclick="toggleVu('${esc(f.t)}')" title="${vu ? "Marquer comme pas vu" : "Marquer comme vu"}">
+              <button class="toggle ${vu ? "on" : ""}" onclick="toggleVu('${escAttr(f.t)}')" title="${vu ? "Marquer comme pas vu" : "Marquer comme vu"}">
                 <span class="knob"></span>
                 <span class="t-lbl l">Pas vu</span>
                 <span class="t-lbl r">Vu</span>
               </button>
-              ${vu ? "" : `<button class="btn primary" onclick="setPick('${esc(f.t)}')">🎬 À voir — c'est mon choix</button>`}
-              <button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${esc(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>
+              ${vu ? "" : `<button class="btn primary" onclick="setPick('${escAttr(f.t)}')">🎬 À voir — c'est mon choix</button>`}
+              <button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${escAttr(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>
             </div>
             ${vu ? stars(f) : ""}
           </div>
@@ -515,7 +517,28 @@
           </div>`;
         loadPosters();
       };
-      const maybeRefreshSeen = () => { if (window.__seenOpen) openSeenModal(); };
+      const maybeRefreshSeen = () => { if (window.__seenOpen) openSeenModal(); if (window.__picksOpen) openPicksModal(); };
+      window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
+      window.openPicksModal = () => {
+        window.__picksOpen = true;
+        const picks = pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean);
+        document.getElementById("modal-root").innerHTML = `
+          <div class="mroot" onclick="if(event.target===this) closePicksModal()">
+            <div class="mbox" style="width:min(720px,96vw)">
+              <h2 style="margin:0 0 4px">🎬 Mes films « À voir » (${picks.length})</h2>
+              <p class="range" style="margin:0 0 12px">Films choisis lors de précédentes recommandations, du plus récent au plus ancien. Marque-les « Vu » une fois regardés — ils quittent alors cette liste et enrichissent ton profil.</p>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                ${picks.length
+                  ? picks.map((f, i) => cardHTML(f, 950 + i)).join("")
+                  : `<p class="range">Aucun film « À voir » en attente — fais une recommandation et choisis un film !</p>`}
+              </div>
+              <div style="display:flex;justify-content:flex-end;margin-top:14px">
+                <button class="btn primary" onclick="closePicksModal()">Fermer</button>
+              </div>
+            </div>
+          </div>`;
+        loadPosters();
+      };
       window.closeAddModal = () => { document.getElementById("modal-root").innerHTML = ""; };
       window.openSyncModal = () => {
         const nbNotes = Object.keys(state.ratings).length;
@@ -597,7 +620,7 @@
         const app = document.getElementById("app");
         let h = `<h1>🎬 Findeur de Films <span>— profil cinéphile Norbert</span></h1>
           <p class="sub">Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.</p>
-          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button></p>`;
+          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button> <button class="btn" onclick="openPicksModal()">🎬 À voir</button></p>`;
 
         if (state.etape === 0) {
           const b = budget();
