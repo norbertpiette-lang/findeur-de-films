@@ -579,8 +579,32 @@
       const picksInSelection = () => pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean).filter((f) => f.g === state.genre);
       const maybeRefreshSeen = () => { if (window.__seenOpen) openSeenModal(); if (window.__picksOpen) openPicksModal(); };
       window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
-      window.openPicksModal = () => {
+      window.openPicksModal = (mode) => {
         window.__picksOpen = true;
+        // mode « all » : liste brute de tous les films « À voir » — aucun filtre, aucune fusion, doublons conservés
+        if (mode === "all") {
+          const raw = Object.keys(state.pickHistory || {})
+            .filter((t) => !state.seen.includes(t) && !state.ratings[t])
+            .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
+          const picks = raw.map((t) => FILMS.find((f) => f.t === t)).filter(Boolean);
+          document.getElementById("modal-root").innerHTML = `
+            <div class="mroot" onclick="if(event.target===this) closePicksModal()">
+              <div class="mbox" style="width:min(720px,96vw)">
+                <h2 style="margin:0 0 4px">🎬 Tous mes films « À voir » (${picks.length})</h2>
+                <p class="range" style="margin:0 0 12px">Liste complète sans filtre — doublons inclus, du plus récent au plus ancien. Marque-les « Vu » ou retire-les pour nettoyer la liste.</p>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  ${picks.length
+                    ? picks.map((f, i) => cardHTML(f, 950 + i, "picks")).join("")
+                    : `<p class="range">Aucun film « À voir » en attente — fais une recommandation et choisis un film !</p>`}
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:14px">
+                  <button class="btn primary" onclick="closePicksModal()">Fermer</button>
+                </div>
+              </div>
+            </div>`;
+          loadPosters();
+          return;
+        }
         const hasGenre = !!state.genre;
         const sel = hasGenre ? picksInSelection() : pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean);
         const autres = hasGenre ? pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean).filter((f) => f.g !== state.genre) : [];
@@ -685,7 +709,7 @@
         const app = document.getElementById("app");
         let h = `<h1>🎬 Findeur de Films <span>— profil cinéphile Norbert</span></h1>
           <p class="sub">Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.</p>
-          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button></p>`;
+          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button> <button class="btn" onclick="openPicksModal('all')" title="Tous mes films « À voir », sans aucun filtre">🎬 À voir</button></p>`;
 
         if (state.etape === 0) {
           const b = budget();
@@ -704,8 +728,7 @@
             </div>
             ${b !== null ? `<p class="budgetline">🎯 Créneau : ${fmtDur((state.coucheMin - state.debutMin + 1440) % 1440)} de séance → ${fmtDur(b)} de film max (marge 10 min).</p>` : ""}
             <p style="margin-top:16px"><button class="btn primary" ${!state.noTime && (state.debutMin === null || state.coucheMin === null) ? "disabled" : ""} onclick="goEtape(1)">Continuer →</button>
-            <button class="btn" onclick="setNoTime()" title="Suggestions sans limite de durée">🕐 Pas de contrainte horaire</button>
-            <button class="btn" onclick="openPicksModal()" title="Tous mes films choisis « À voir », toutes ambiances">🎬 À voir</button></p>`;
+            <button class="btn" onclick="setNoTime()" title="Suggestions sans limite de durée">🕐 Pas de contrainte horaire</button></p>`;
         }
 
         if (state.etape === 1) {
