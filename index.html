@@ -776,6 +776,8 @@ type: "text/html"
         const poolList = (poolCache || []).filter((f) => !FILMS.some((c) => c.t === f.t)).sort(byTitle);
         const poolRows = poolList.map((f) => row(f.t, f.r, f.y, f.g, f.p, "🆕 Hors stock" + (adoptedTitles.has(f.t) ? " · adopté" : "") + " · " + statutOf(f.t))).join("");
         const voirRows = pendingAll().slice().sort((a, c) => a.localeCompare(c, "fr")).map((t) => { const f = findFilm(t); return row(t, f ? f.r : "—", f ? f.y : null, f ? f.g : null, f ? f.p : [], "🎬 À voir" + (f ? "" : " · hors catalogue")); }).join("");
+        const horsStockVus = state.seen.slice().filter((t) => !findFilm(t)).sort((a, c) => a.localeCompare(c, "fr"));
+        const vusRows = horsStockVus.map((t) => { const rt = (state.ratings[t] || {}).v; return row(t, "—", null, null, [], "👁️ Vu" + (rt !== undefined ? (rt === 0 ? " · 👎" : " · " + "★".repeat(rt)) : "") + " · ajout manuel"); }).join("");
         const table = (label, count, rows) => `<p class="lbl" style="margin:14px 0 4px">${label} (${count})</p>
           <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.8rem;min-width:560px">${thead}${rows || `<tr><td colspan="5" style="padding:6px 8px;color:#94a3b8">Aucun</td></tr>`}</table></div>`;
         document.getElementById("modal-root").innerHTML = `
@@ -786,6 +788,7 @@ type: "text/html"
               ${table("📚 En stock (catalogue de l'app + adoptés)", FILMS.length + getAdopted().length, stockRows + getAdopted().filter((f) => !FILMS.some((c) => c.t === f.t)).map((f) => row(f.t, f.r, f.y, f.g, f.p, "📚 Stock personnel · " + statutOf(f.t))).join(""))}
               ${table("🆕 Hors stock (pool du jour)", (poolCache || []).filter((f) => !FILMS.some((c) => c.t === f.t)).length, poolRows)}
               ${table("🎬 Liste « À voir » (sans filtre)", pendingAll().length, voirRows)}
+              ${horsStockVus.length ? table("👁️ Films vus hors catalogue (ajoutés via « J'ai vu un film »)", horsStockVus.length, vusRows) : ""}
               <div style="display:flex;justify-content:flex-end;margin-top:14px">
                 <button class="btn primary" onclick="closeAddModal()">Fermer</button>
               </div>
