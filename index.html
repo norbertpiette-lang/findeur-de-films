@@ -172,6 +172,18 @@
       const POOL_SEEN_KEY = "findeur-pool-seen";
       const getPoolSeen = () => { try { return JSON.parse(localStorage.getItem(POOL_SEEN_KEY) || "[]"); } catch (e) { return []; } };
       const addPoolSeen = (t) => { try { const l = getPoolSeen(); if (!l.includes(t)) { l.push(t); localStorage.setItem(POOL_SEEN_KEY, JSON.stringify(l)); } } catch (e) {} };
+      // auto-adoption : un film du pool choisi « À voir », vu ou noté rejoint le stock personnel (persistant, synchronisé)
+      const ADOPT_KEY = "findeur-adopted";
+      const getAdopted = () => { try { const l = JSON.parse(localStorage.getItem(ADOPT_KEY) || "[]"); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
+      const setAdopted = (l) => { try { localStorage.setItem(ADOPT_KEY, JSON.stringify(l)); } catch (e) {} };
+      const ALL_FILMS = () => FILMS.concat(getAdopted());
+      const isPoolFilm = (t) => (poolCache || []).some((f) => f.t === t);
+      const adopt = (t) => {
+        const f = (poolCache || []).find((x) => x.t === t);
+        if (!f) return;
+        const l = getAdopted();
+        if (!l.some((x) => x.t === t)) { l.push(f); setAdopted(l); save(); schedulePush(); }
+      };
 
       let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
@@ -189,7 +201,7 @@
           (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p)));
       };
       // films déjà vus de l'ambiance courante : aucun filtre de plateforme appliqué (même actif)
-      const seenInSelection = () => FILMS.filter((f) => f.g === state.genre && state.seen.includes(f.t));
+      const seenInSelection = () => ALL_FILMS().filter((f) => f.g === state.genre && state.seen.includes(f.t));
       const isIndispo = (t) => (state.indispo?.[t] || 0) > 0 && Date.now() - state.indispo[t] < IND_DELAY;
       // migration ancien format : seen [] → seenMap avec horodatage 0
       if (!state.seenMap && Array.isArray(state.seen)) {
@@ -340,7 +352,7 @@
         const st = {};
         GENRES.forEach((g) => { st[g.id] = { n: 0, pos: 0, neg: 0 }; });
         Object.entries(state.ratings).forEach(([t, e]) => {
-          const f = FILMS.find((x) => x.t === t);
+          const f = ALL_FILMS().find((x) => x.t === t);
           if (!f || !st[f.g]) return;
           st[f.g].n++;
           if (e.v === 3) st[f.g].pos++;
@@ -374,7 +386,7 @@
       window.goEtape = (n) => { state.etape = n; window.__jumpTop = true; save(); render(); };
       window.setGenre = (g) => { state.genre = g; state.etape = 2; window.__jumpTop = true; save(); render(); };
       window.setEnvie = (e) => { state.envie = e; state.etape = 3; window.__jumpTop = true; save(); render(); };
-      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t) || (poolCache || []).find(f => f.t === t); if (state.pick) { state.pickHistory[t] = state.pickHistory[t] || Date.now(); } window.__jumpTop = true; save(); render(); };
+      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t) || (poolCache || []).find(f => f.t === t); if (state.pick) { state.pickHistory[t] = state.pickHistory[t] || Date.now(); if (isPoolFilm(t)) adopt(t); } window.__jumpTop = true; save(); render(); };
       window.closePick = () => { state.pick = null; save(); render(); };
       window.toggleVu = (t) => {
         const now = Date.now();
@@ -385,11 +397,12 @@
         } else { // ajout
           state.seenMap[t] = now;
           delete state.seenDel[t];
+          if (isPoolFilm(t)) adopt(t); // auto-adoption au marquage « vu »
           addPoolSeen(t); // mémoriser les films hors stock vus pour ne plus les suggérer
         }
         recomputeSeen(); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen();
       };
-      window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); };
+      window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; if (isPoolFilm(t)) adopt(t); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); };
       window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); };
       window.toggleBig = () => { state.filters.big = !state.filters.big; save(); render(); };
       window.togglePlat = (p) => {
@@ -428,6 +441,10 @@
         state.seenDel = mergeMap(remote.seenDel, state.seenDel);
         state.indispo = mergeMap(remote.indispo, state.indispo);
         state.pickHistory = mergeMap(remote.pickHistory, state.pickHistory);
+        // fusion du stock personnel adopté (union par titre)
+        const mergedAdopted = (remote.adopted || []).slice();
+        getAdopted().forEach((f) => { if (!mergedAdopted.some((x) => x.t === f.t)) mergedAdopted.push(f); });
+        setAdopted(mergedAdopted);
         const mergedC = { ...(state.comments || {}) };
         Object.entries(remote.comments || {}).forEach(([t, c]) => {
           const local = mergedC[t];
@@ -448,7 +465,7 @@
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
+        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, adopted: getAdopted(), catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -598,7 +615,7 @@
         loadPosters();
       };
       // films « À voir » de l'ambiance courante (compteur du bouton) ; le reste est listé à part dans la fenêtre
-      const findFilm = (t) => FILMS.find((x) => x.t === t) || (poolCache || []).find((x) => x.t === t) || null;
+      const findFilm = (t) => FILMS.find((x) => x.t === t) || (poolCache || []).find((x) => x.t === t) || getAdopted().find((x) => x.t === t) || null;
       const picksInSelection = () => pendingPicks().filter((t) => { const f = findFilm(t); return !!f && f.g === state.genre; });
       // liste brute « À voir » (sans fusion, doublons inclus) — compteur du bouton de la première page
       const pendingAll = () => Object.keys(state.pickHistory || {})
@@ -809,14 +826,14 @@
           const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Arte", "YouTube", "Cinéma"];
           // Films en salle : uniquement du vendredi au dimanche (préférence week-end du profil)
           const isWE = [5, 6, 0].includes(new Date().getDay());
-          let results = FILMS.filter(f =>
+          let results = ALL_FILMS().filter(f =>
             f.g === state.genre &&
             SELECTION_OK(f) &&
             !f.t.includes("(re-voir)") &&
             !isIndispo(f.t) &&
             !isSessionSeen(f.t)
           );
-          const poolSel = (poolCache || []).filter((f) => f && f.g === state.genre && !FILMS.some((c) => c.t === f.t) && !state.seen.includes(f.t) && !isSessionSeen(f.t) && !getPoolSeen().includes(f.t) && SELECTION_OK(f));
+          const poolSel = (poolCache || []).filter((f) => f && f.g === state.genre && !getAdopted().some((x) => x.t === f.t) && !FILMS.some((c) => c.t === f.t) && !state.seen.includes(f.t) && !isSessionSeen(f.t) && !getPoolSeen().includes(f.t) && SELECTION_OK(f));
           const masques = FILMS.filter(f => f.g === state.genre && isIndispo(f.t));
           results.sort((a, c) => {
             const okA = b === null || a.dur <= b ? 0 : 1, okC = b === null || c.dur <= b ? 0 : 1;
