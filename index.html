@@ -299,10 +299,10 @@
           state.seenMap[t] = now;
           delete state.seenDel[t];
         }
-        recomputeSeen(); save(); schedulePush(); window.__keepScroll = true; render();
+        recomputeSeen(); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen();
       };
-      window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); };
-      window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); };
+      window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); };
+      window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); };
       window.toggleBig = () => { state.filters.big = !state.filters.big; save(); render(); };
       window.togglePlat = (p) => {
         state.filters.plateformes = state.filters.plateformes.includes(p)
@@ -460,6 +460,29 @@
         window.renderAddStars();
         document.getElementById("add-q").focus();
       };
+      window.closeSeenModal = () => { window.__seenOpen = false; document.getElementById("modal-root").innerHTML = ""; };
+      window.openSeenModal = () => {
+        window.__seenOpen = true;
+        const vus = FILMS.filter((f) => f.g === state.genre && state.seen.includes(f.t));
+        const genreLabel = GENRES.find((g) => g.id === state.genre).label;
+        document.getElementById("modal-root").innerHTML = `
+          <div class="mroot" onclick="if(event.target===this) closeSeenModal()">
+            <div class="mbox" style="width:min(720px,96vw)">
+              <h2 style="margin:0 0 4px">👁️ Films déjà vus — ${esc(genreLabel)}</h2>
+              <p class="range" style="margin:0 0 12px">Corrige tes notes si besoin : un clic sur une étoile la change, un second clic sur la même valeur la retire. Bascule « Pas vu » pour le faire réapparaître dans les suggestions.</p>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                ${vus.length
+                  ? vus.map((f, i) => cardHTML(f, 900 + i)).join("")
+                  : `<p class="range">Aucun film déjà vu dans cette ambiance pour l'instant.</p>`}
+              </div>
+              <div style="display:flex;justify-content:flex-end;margin-top:14px">
+                <button class="btn primary" onclick="closeSeenModal()">Fermer</button>
+              </div>
+            </div>
+          </div>`;
+        loadPosters();
+      };
+      const maybeRefreshSeen = () => { if (window.__seenOpen) openSeenModal(); };
       window.closeAddModal = () => { document.getElementById("modal-root").innerHTML = ""; };
       window.openSyncModal = () => {
         const nbNotes = Object.keys(state.ratings).length;
@@ -532,7 +555,7 @@
         if (c) state.comments[t] = { text: c, at: Date.now() };
         if (!state.seen.includes(t)) window.toggleVu(t);
         if (__addNote !== null) window.setRating(t, __addNote);
-        if (c) { save(); schedulePush(); }
+        if (c) { save(); schedulePush(); maybeRefreshSeen(); }
         window.closeAddModal();
         render();
       };
@@ -599,6 +622,7 @@
               <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
               ${PLATEFORMES.map(p => `<label><input type="checkbox" ${state.filters.plateformes.includes(p) ? "checked" : ""} onchange="togglePlat('${p}')"> ${p}</label>`).join("")}
             </div>
+            <p class="range" style="margin-top:6px"><button class="btn" onclick="openSeenModal()">👁️ Films déjà vus (${FILMS.filter((f) => f.g === state.genre && state.seen.includes(f.t)).length})</button></p>
             <p class="range" style="margin-top:6px">${isWE
               ? "🍿 C'est le week-end : les sorties en salle (Pathé Palace Opéra · Grand Rex · Max Linder) sont incluses."
               : "🎟️ Les films en salle apparaissent ici du vendredi au dimanche — en semaine, uniquement streamings et VOD."}</p>
