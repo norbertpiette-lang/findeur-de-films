@@ -253,6 +253,53 @@ type: "text/html"
 
       const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} };
 
+      // purge héritée des problèmes d'encodage (Ã©, ï¿½…) : répare les accents, fusionne les doublons, à chaque chargement
+      const MOJI = /Ã|ï¿½|\uFFFD|Â/;
+      const fixMojibake = (s) => {
+        if (!MOJI.test(s)) return s;
+        let dec = s;
+        try { dec = new TextDecoder().decode(Uint8Array.from(s, (c) => c.charCodeAt(0))); } catch (e) {}
+        let out = (dec && dec !== s && !MOJI.test(dec) && !dec.includes("\uFFFD")) ? dec : s;
+        const pass = (x) => x.replace(/ï¿½|\uFFFD/g, "é").replace(/Ã©/g, "é").replace(/Ã¨/g, "è").replace(/Ã¯/g, "ï").replace(/Ãª/g, "ê").replace(/Ã¢/g, "â").replace(/Ã¹/g, "ù").replace(/Ã/g, "é").replace(/Â/g, "");
+        out = pass(pass(out)); // deux passages : certaines séquences (ex. Ã¯¿½) se reforment après le premier
+        return out;
+      };
+      const purgeMojibake = () => {
+        let changed = false;
+        const wasMoji = {};
+        const maps = ["ratings", "comments", "seenMap", "seenDel", "pickHistory"];
+        // 1. textes des commentaires
+        Object.values(state.comments || {}).forEach((c) => { if (c && c.text) { const nt = fixMojibake(c.text); if (nt !== c.text) { c.text = nt; changed = true; } } });
+        // 2. clés des maps : accents réparés, doublons fusionnés (on garde la valeur la plus récente)
+        maps.forEach((m) => {
+          const o = state[m] || {}; const copy = {};
+          Object.keys(o).forEach((k) => {
+            const nk = fixMojibake(k); if (nk !== k) { changed = true; wasMoji[nk] = true; }
+            if (copy[nk] === undefined) copy[nk] = o[k];
+            else { const ta = (o[k] && o[k].at) || o[k] || 0, tb = (copy[nk] && copy[nk].at) || copy[nk] || 0; if (ta > tb) copy[nk] = o[k]; }
+          });
+          state[m] = copy;
+        });
+        // 3. fusion des variantes : un titre touché par l'encodage rejoint son jumeau propre (préfixe normalisé commun)
+        const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const seenTitles = Object.keys(state.seenMap || {});
+        seenTitles.forEach((t) => {
+          if (!wasMoji[t]) return;
+          const nt = norm(t); if (nt.length < 8) return;
+          const jumeau = seenTitles.find((x) => x !== t && !wasMoji[x] && (norm(x).includes(nt.slice(0, 10)) || nt.includes(norm(x).slice(0, 10))));
+          if (!jumeau) return;
+          maps.forEach((m) => { const o = state[m] || {}; if (o[t] !== undefined) { if (o[jumeau] === undefined || ((o[t] && o[t].at) || o[t] || 0) > ((o[jumeau] && o[jumeau].at) || o[jumeau] || 0)) o[jumeau] = o[t]; delete o[t]; changed = true; } });
+        });
+        // 4. nettoyage du poolSeen local
+        try {
+          const ps = JSON.parse(localStorage.getItem("findeur-pool-seen") || "[]") || [];
+          const fixed = []; ps.forEach((t) => { const ft = fixMojibake(t); if (ft !== t) changed = true; if (!fixed.includes(ft)) fixed.push(ft); });
+          localStorage.setItem("findeur-pool-seen", JSON.stringify(fixed));
+        } catch (e) {}
+        return changed;
+      };
+      if (purgeMojibake()) save();
+
       const fmtH = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); };
       const fmtDur = (m) => Math.floor(m/60) + "h" + String(m%60).padStart(2,"0");
       const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
