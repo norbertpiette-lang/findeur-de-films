@@ -351,7 +351,9 @@
               </button>
               ${vu ? "" : (opts === "picks"
                 ? `<button class="btn" title="Retirer ce film de ma liste « À voir »" onclick="removePick('${escAttr(f.t)}')">❌ Retirer de « À voir »</button>`
-                : `<button class="btn primary" onclick="setPick('${escAttr(f.t)}')">🎬 À voir — c'est mon choix</button>`)}
+                : (state.pickHistory[f.t]
+                  ? `<button class="btn" style="opacity:.65;cursor:default" title="Ce film est déjà dans ta liste « À voir »">✔️ Dans la liste à voir</button>`
+                  : `<button class="btn primary" onclick="setPick('${escAttr(f.t)}')">🎬 À voir — c'est mon choix</button>`))}
               <button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${escAttr(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>
             </div>
             ${vu ? stars(f) : ""}
@@ -412,7 +414,37 @@
       window.goEtape = (n) => { state.etape = n; window.__jumpTop = true; save(); render(); };
       window.setGenre = (g) => { state.genre = g; state.etape = 2; window.__jumpTop = true; save(); render(); };
       window.setEnvie = (e) => { state.envie = e; state.etape = 3; window.__jumpTop = true; save(); render(); };
-      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t) || (poolCache || []).find(f => f.t === t); if (state.pick) { state.pickHistory[t] = state.pickHistory[t] || Date.now(); if (isPoolFilm(t)) adopt(t); } window.__jumpTop = true; save(); render(); };
+      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t) || (poolCache || []).find(f => f.t === t) || getAdopted().find(f => f.t === t); window.__jumpTop = true; save(); render(); loadPickInfo(); };
+      window.confirmPick = () => { if (state.pick) { state.pickHistory[state.pick.t] = state.pickHistory[state.pick.t] || Date.now(); if (isPoolFilm(state.pick.t)) adopt(state.pick.t); } state.pick = null; window.__jumpTop = true; save(); schedulePush(); render(); };
+      window.declinePick = () => { state.pick = null; window.__jumpTop = true; save(); render(); };
+      const pickInfoCache = {};
+      const loadPickInfo = async () => {
+        const f = state.pick; if (!f) return;
+        const key = getTmdbKey(); if (!key) return;
+        if (pickInfoCache[f.t]) { applyPickInfo(pickInfoCache[f.t]); return; }
+        try {
+          const r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${key}&query=${encodeURIComponent(f.t)}${f.y ? "&year=" + f.y : ""}&language=fr-FR`);
+          if (!r.ok) return;
+          const j = await r.json();
+          const hit = (j.results || [])[0]; if (!hit) return;
+          const d = await fetch(`https://api.themoviedb.org/3/movie/${hit.id}?api_key=${key}&language=fr-FR&append_to_response=credits`);
+          if (!d.ok) return;
+          const m = await d.json();
+          const info = {
+            cast: ((m.credits || {}).cast || []).slice(0, 5).map((c) => c.name).join(", ") || "",
+            real: ((m.credits || {}).crew || []).find((c) => c.job === "Director") ? m.credits.crew.find((c) => c.job === "Director").name : "",
+            synopsis: m.overview || ""
+          };
+          pickInfoCache[f.t] = info;
+          applyPickInfo(info);
+        } catch (e) { /* hors ligne */ }
+      };
+      const applyPickInfo = (info) => {
+        const elC = document.getElementById("pick-cast");
+        if (elC) { if (info.cast) { elC.textContent = info.cast; elC.style.display = ""; } else elC.style.display = "none"; }
+        const elS = document.getElementById("pick-synopsis");
+        if (elS) { if (info.synopsis) { elS.textContent = info.synopsis; elS.style.display = ""; } else elS.style.display = "none"; }
+      };
       window.closePick = () => { state.pick = null; save(); render(); };
       window.toggleVu = (t) => {
         const now = Date.now();
@@ -921,14 +953,23 @@
 
         if (state.etape === 3 && state.pick) {
           const f = state.pick, b = budget();
-          const r = state.ratings[f.t]?.v ?? 0;
+          const reperes = ALL_FILMS().filter((x) => x.g === f.g && state.seen.includes(x.t) && ((state.ratings[x.t] || {}).v || 0) >= 2).map((x) => x.t).slice(0, 3);
           h += `<div class="pickbox">
-            <div style="font-size:1.8rem">🍿</div>
-            <h2 style="margin:4px 0">${esc(f.t)}</h2>
-            <p class="meta">${esc(f.r)} · ${f.y}</p>
-            <p class="fit-ok">⏱️ ${fmtDur(f.dur)} · commence ${fmtH(state.debutMin)} → finit vers ${fmtH(state.debutMin + f.dur)} (fin prévue ${fmtH(state.debutMin + b)})</p>
-            <p class="pitch" style="margin-top:10px">${esc(f.pitch)}</p>
-            <p class="fit-ok" style="font-weight:600">💡 ${esc(f.why)}</p>
+            <div style="display:flex;flex-direction:row;gap:16px;align-items:flex-start;flex-wrap:wrap">
+              <div class="poster" data-title="${esc(f.t)}" id="poster-pick" style="width:140px;align-self:flex-start">🎞️</div>
+              <div style="flex:1;min-width:240px">
+                <div style="font-size:1.8rem">🍿</div>
+                <h2 style="margin:4px 0">${esc(f.t)}</h2>
+                <p class="meta">🎞️ ${f.y} · Réalisateur : ${esc(f.r)}</p>
+                <p id="pick-cast" style="margin:4px 0" class="meta">🎭 Chargement des acteurs…</p>
+                <p class="fit-ok">⏱️ ${fmtDur(f.dur)} · commence ${fmtH(state.debutMin)} → finit vers ${fmtH(state.debutMin + f.dur)} (fin prévue ${fmtH(state.debutMin + b)})</p>
+              </div>
+            </div>
+            <p class="lbl" style="margin-top:12px">📖 Synopsis</p>
+            <p id="pick-synopsis" style="margin:0">${esc(f.pitch)}</p>
+            <p class="lbl" style="margin-top:12px">💡 Pourquoi il pourrait te plaire</p>
+            <p style="margin:0">${esc(f.why)}</p>
+            ${reperes.length ? `<p class="fit-ok" style="margin:6px 0 0">🔗 Dans la lignée de tes coups de cœur : ${reperes.map(esc).join(", ")}</p>` : ""}
             <div class="dispo">
               <p class="lbl">📡 Disponibilité (à confirmer sur l'app)</p>
               ${f.p.length > 0 ? f.p.map(p => `<span class="chip green">${p.includes("VOD") ? "💳 Location/achat VOD" : p === "Cinéma" ? "🎟️ Cinéma (Pathé Palace Opéra · Grand Rex · Max Linder)" : p === "Sooner" ? "🎬 Sooner" : p === "Arte" ? "🎨 Arte (replay gratuit)" : p === "YouTube" ? "▶️ YouTube (location/achat)" : "📺 " + esc(p)}</span>`).join("") +
@@ -936,14 +977,11 @@
                 : `<p class="none">⚠️ Aucune plateforme identifiée — vérifie sur JustWatch France.</p>`}
             </div>
             ${f.big ? '<div style="margin-top:8px"><span class="chip amber">🖥️ Mérite le vidéoprojecteur</span></div>' : ""}
+            <p class="warn" style="margin-top:10px">⚠️ Confirme la disponibilité sur l'app de la plateforme (fiches VOD parfois fantômes).${f.g === "comedie" ? " Vérifie la VF." : ""} Une fois le film vu, note-le via « ➕ J'ai vu un film ».</p>
           </div>
-          <div class="notebox">
-            <p class="warn">🎬 Bon film ! Note-le après la séance via le bouton « ➕ J'ai vu un film » — ton profil cinéphile s'enrichira de ta note et de ton commentaire.</p>
-            <p class="warn">⚠️ Confirme la disponibilité sur l'app de la plateforme (fiches VOD parfois fantômes).${f.g === "comedie" ? " Vérifie la VF." : ""}</p>
-          </div>
-          <p style="margin-top:14px">
-            <button class="btn" onclick="closePick()">← Autres suggestions</button>
-            <button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button>
+          <p style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn" onclick="declinePick()">❌ Non merci — pas envie</button>
+            <button class="btn primary" onclick="confirmPick()">✅ À voir — j'ajoute à ma liste</button>
           </p>`;
         }
           h += `<footer>`;
@@ -1009,12 +1047,3 @@
         render();
       };
 
-      // purge « Babylon » : correctif unique, exécuté une seule fois puis jamais relancé
-      try { if (!localStorage.getItem("findeur-purge-babylon")) { if (purgePicks()) save(); localStorage.setItem("findeur-purge-babylon", "1"); } } catch (e) {}
-      loadPool().then(() => render()).catch(() => {});
-      loadProfil().then(() => render()).catch(() => {});
-      render();
-      initSync();
-    </script>
-  </body>
-</html>
