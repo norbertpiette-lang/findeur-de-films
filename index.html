@@ -400,11 +400,26 @@
 
       // --- Fenêtre « J'ai vu un film » : ajout avec vérification du titre ---
       let __addResults = [], __addPicked = null, __addNote = null, __addTimer = null, __histTitles = [];
-      const pendingPicks = () => Object.keys(state.pickHistory || {})
-        .filter((t) => !state.seen.includes(t) && !state.ratings[t])
-        .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
+      const normTitle = (t) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").replace(/^iletaitunefois/, "");
+      const pendingPicks = () => {
+        const merged = new Map();
+        Object.keys(state.pickHistory || {})
+          .filter((t) => !state.seen.includes(t) && !state.ratings[t])
+          .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0))
+          .forEach((t) => {
+            const k = normTitle(t);
+            if (!merged.has(k)) merged.set(k, t);
+            else {
+              const cur = merged.get(k);
+              // fusion de doublons/suspicions : privilégier le titre connu du catalogue
+              if (!FILMS.find((f) => f.t === cur) && FILMS.find((f) => f.t === t)) merged.set(k, t);
+            }
+          });
+        return [...merged.values()];
+      };
       window.pickFromHistory = (i) => {
-        const t = __histTitles[i];
+        if (i === "" || i === null || i === undefined) return;
+        const t = __histTitles[Number(i)];
         const f = FILMS.find((x) => x.t === t) || { t, y: null };
         __addPicked = { t, y: f.y, src: "🎬 ton choix « À voir »" };
         const q = document.getElementById("add-q"); if (q) q.value = t;
@@ -426,9 +441,13 @@
         __addPicked = null; __addNote = null; __addResults = []; __histTitles = pendingPicks();
         const enAttente = __histTitles.length > 0
           ? `<div id="add-hist" style="margin-bottom:12px">
-              <p class="lbl" style="margin:0 0 6px">🎬 Tes films « À voir » en attente — clique si c'est l'un d'eux :</p>
-              <div style="display:flex;flex-wrap:wrap;gap:6px">
-                ${__histTitles.map((t, i) => `<button class="sugg" style="width:auto;margin-top:0" onclick="pickFromHistory(${i})">${esc(t)}</button>`).join("")}
+              <p class="lbl" style="margin:0 0 6px">🎬 Tes films « À voir » en attente :</p>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <select id="add-hist-sel" style="flex:1;min-width:200px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.85rem">
+                  <option value="">— choisir un film « À voir »…</option>
+                  ${__histTitles.map((t, i) => `<option value="${i}">${esc(t)}</option>`).join("")}
+                </select>
+                <button class="btn primary" onclick="pickFromHistory(document.getElementById('add-hist-sel').value)">Choisir</button>
               </div>
             </div>`
           : "";
