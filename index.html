@@ -159,6 +159,9 @@
       const LS = "findeur-films-state";
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
+      // base64 ↔ UTF-8 : indispensable pour les accents (é, è, œ…) — l'atob/btoa naïf les transforme en « Ã© »
+      const utf8B64 = (s) => { const bytes = new TextEncoder().encode(s); let bin = ""; bytes.forEach((c) => { bin += String.fromCharCode(c); }); return btoa(bin); };
+      const utf8UnB64 = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), (c) => c.charCodeAt(0)));
 
       // stock bonus : recommandations générées hors catalogue par la tâche planifiée « pool »
       let poolCache = null;
@@ -467,12 +470,12 @@
         if (!res.ok) throw new Error("HTTP " + res.status);
         const j = await res.json();
         let notes = { ratings: {}, seen: [], seenMap: {}, seenDel: {} };
-        try { notes = JSON.parse(atob(j.content.replace(/\n/g, ""))) || notes; } catch (e) {}
+        try { notes = JSON.parse(utf8UnB64(j.content)) || notes; } catch (e) {}
         notes.sha = j.sha;
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, adopted: getAdopted(), catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
+        const content = utf8B64(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, adopted: getAdopted(), catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
