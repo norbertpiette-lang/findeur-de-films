@@ -162,6 +162,9 @@
 
       let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
+      // films vus avant cette session : cachés des suggestions ; ceux marqués vus pendant la session restent affichés pour être notés
+      let sessionSeen = new Set(state.seen);
+      const isSessionSeen = (t) => sessionSeen.has(t);
       const IND_DELAY = 90 * 864e5; // rétention indisponibilité : 3 mois
       const isIndispo = (t) => (state.indispo?.[t] || 0) > 0 && Date.now() - state.indispo[t] < IND_DELAY;
       // migration ancien format : seen [] → seenMap avec horodatage 0
@@ -627,7 +630,7 @@
             f.p.some(p => ALLOWED.includes(p)) &&
             !(f.p.includes("Cinéma") && !isWE) &&
             !isIndispo(f.t) &&
-            !state.seen.includes(f.t) &&
+            !isSessionSeen(f.t) &&
             (!state.filters.big || f.big) &&
             (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p)))
           );
