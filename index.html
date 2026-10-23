@@ -414,7 +414,6 @@
         state.seenDel = mergeMap(remote.seenDel, state.seenDel);
         state.indispo = mergeMap(remote.indispo, state.indispo);
         state.pickHistory = mergeMap(remote.pickHistory, state.pickHistory);
-        if (purgePicks()) save();
         const mergedC = { ...(state.comments || {}) };
         Object.entries(remote.comments || {}).forEach(([t, c]) => {
           const local = mergedC[t];
@@ -901,7 +900,8 @@
         render();
       };
 
-      if (purgePicks()) save();
+      // purge « Babylon » : correctif unique, exécuté une seule fois puis jamais relancé
+      try { if (!localStorage.getItem("findeur-purge-babylon")) { if (purgePicks()) save(); localStorage.setItem("findeur-purge-babylon", "1"); } } catch (e) {}
       render();
       initSync();
     </script>
