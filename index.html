@@ -165,6 +165,22 @@
 
       // stock bonus : recommandations générées hors catalogue par la tâche planifiée « pool »
       let poolCache = null;
+      // synthèse du profil cinéphile : régénérée chaque matin par la tâche planifiée (profil.json du dépôt de données)
+      let profilTxt = null;
+      const loadProfil = async () => {
+        if (profilTxt !== null) return;
+        try {
+          const tok = getToken();
+          if (!tok) return;
+          const r = await fetch(`https://api.github.com/repos/${SYNC.owner}/${SYNC.dataRepo}/contents/profil.json?ref=${SYNC.branch}`, { headers: { Authorization: "Bearer " + tok, Accept: "application/vnd.github+json" } });
+          if (!r.ok) return;
+          const j = await r.json();
+          const bin = atob((j.content || "").replace(/\s/g, ""));
+          const txt = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+          const data = JSON.parse(txt);
+          profilTxt = (data && data.synthese) || "";
+        } catch (e) { profilTxt = ""; }
+      };
       const loadPool = async () => {
         if (poolCache !== null) return;
         try {
@@ -817,8 +833,8 @@
 
       const render = () => {
         const app = document.getElementById("app");
-        let h = `<h1>🎬 Findeur de Films <span>— profil cinéphile Norbert</span></h1>
-          <p class="sub">Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.</p>
+        let h = `<h1>🎬 Findeur de Films</h1>
+          <p class="sub">${esc(profilTxt || "Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.")}</p>
           <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button> <button class="btn primary" onclick="openPicksModal('all')" title="Tous mes films « À voir », sans aucun filtre">🎬 À voir (${pendingAll().length})</button></p>`;
 
         if (state.etape === 0) {
@@ -996,6 +1012,7 @@
       // purge « Babylon » : correctif unique, exécuté une seule fois puis jamais relancé
       try { if (!localStorage.getItem("findeur-purge-babylon")) { if (purgePicks()) save(); localStorage.setItem("findeur-purge-babylon", "1"); } } catch (e) {}
       loadPool().then(() => render()).catch(() => {});
+      loadProfil().then(() => render()).catch(() => {});
       render();
       initSync();
     </script>
