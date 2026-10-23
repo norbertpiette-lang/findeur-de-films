@@ -177,12 +177,12 @@
 
       const stars = (film) => {
         const r = state.ratings[film.t]?.v ?? null;
-        let h = `<div class="stars">`;
+        let h = `<div style="display:flex;align-items:center;gap:6px;white-space:nowrap"><div class="stars">`;
         h += `<button class="${r === 0 ? "thumb-on" : ""}" title="Vraiment pas aimé" onclick="setRating('${esc(film.t)}',0)">👎</button>`;
         for (let n = 1; n <= 3; n++) {
           h += `<button class="${r !== null && r >= n ? "on" : ""}" title="${NOTE_LABELS[n]}" onclick="setRating('${esc(film.t)}',${n})">${r !== null && r >= n ? "★" : "☆"}</button>`;
         }
-        h += `</div><span class="starlabel">${r !== null ? NOTE_LABELS[r] : "pas encore noté"}</span>`;
+        h += `</div><span class="starlabel">${r !== null ? NOTE_LABELS[r] : "pas encore noté"}</span></div>`;
         return h;
       };
 
@@ -392,7 +392,7 @@
           });
           h += `<div class="row"><h2>4️⃣ ${results.length} suggestion${results.length > 1 ? "s" : ""} · ${GENRES.find(g => g.id === state.genre).label}</h2>
             <span class="range">⏰ séance ${fmtH(state.debutMin)} → coucher ${state.coucheMin < state.debutMin ? fmtH(state.coucheMin) : fmtH(state.coucheMin)} · ${fmtDur(b)} max</span>
-            <button class="backlink" onclick="reset()">recommencer</button></div>
+            <button onclick="reset()" title="Recommencer depuis le début" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 4px">🏠</button></div>
             <div class="filters">
               <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
               ${PLATEFORMES.map(p => `<label><input type="checkbox" ${state.filters.plateformes.includes(p) ? "checked" : ""} onchange="togglePlat('${p}')"> ${p}</label>`).join("")}
