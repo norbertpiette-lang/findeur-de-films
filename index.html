@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🎬 Findeur de Films</title>
+    <style>
+      :root { font-family: Inter, system-ui, sans-serif; background: #020617; color: #f1f5f9; }
+      body { margin: 0; }
+      .wrap { max-width: 860px; margin: 0 auto; padding: 24px 20px 60px; }
+      h1 { font-size: 1.5rem; margin: 0; }
+      h1 span { color: #64748b; font-weight: 400; font-size: 1rem; }
+      .sub { color: #94a3b8; font-size: .85rem; margin-top: 4px; }
+      h2 { font-size: 1.05rem; margin: 0 0 12px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+      .btn-card { text-align: left; padding: 14px; border: 1px solid #1e293b; background: #0f172a; border-radius: 12px; cursor: pointer; color: inherit; transition: .15s; }
+      .btn-card:hover { background: #1e293b; border-color: #475569; }
+      .btn-card b { display: block; margin-bottom: 2px; }
+      .btn-card small { color: #94a3b8; }
+      .chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid #334155; background: #1e293b; color: #cbd5e1; margin: 2px 2px 0 0; }
+      .chip.green { background: #064e3b; color: #6ee7b7; border-color: #047857; }
+      .chip.amber { background: #451a03; color: #fbbf24; border-color: #b45309; }
+      .card { border: 1px solid #1e293b; background: rgba(15,23,42,.7); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+      .card.toolong { opacity: .55; }
+      .card .title { font-weight: 600; }
+      .card .meta { font-size: .75rem; color: #94a3b8; }
+      .pitch { font-size: .9rem; color: #e2e8f0; margin: 0; }
+      .why { font-size: .78rem; color: #94a3b8; font-style: italic; margin: 0; }
+      .fit-ok { color: #34d399; font-size: .8rem; }
+      .fit-ko { color: #fb7185; font-size: .8rem; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+      .btn { font-size: .78rem; padding: 6px 12px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #e2e8f0; cursor: pointer; transition: .15s; }
+      .btn:hover { background: #334155; }
+      .btn.primary { background: #047857; border-color: #047857; color: #fff; font-weight: 600; }
+      .btn.vu-on { background: #047857; border-color: #059669; color: #fff; }
+      .btn:disabled { background: #1e293b; color: #64748b; cursor: not-allowed; }
+      .stars button { font-size: 1.1rem; background: none; border: none; cursor: pointer; color: #475569; padding: 0 2px; transition: .1s; }
+      .stars button:hover { transform: scale(1.15); }
+      .stars button.on { color: #fbbf24; }
+      .starlabel { font-size: .72rem; color: #94a3b8; }
+      .backlink { background: none; border: none; color: #64748b; font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; }
+      .filters { display: flex; gap: 14px; flex-wrap: wrap; font-size: .8rem; align-items: center; color: #cbd5e1; }
+      .filters label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
+      .filters input { accent-color: #10b981; }
+      .slot { border: 1px solid #1e293b; background: #0f172a; border-radius: 12px; padding: 14px; }
+      .slot p { margin: 0 0 8px; font-size: .9rem; font-weight: 500; }
+      .slot .btn { margin: 2px; }
+      .slot input[type=time] { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: 5px 8px; font-size: .8rem; }
+      .budgetline { color: #6ee7b7; font-size: .9rem; margin-top: 8px; }
+      .pickbox { border: 1px solid #047857; background: rgba(6,78,59,.35); border-radius: 16px; padding: 22px; }
+      .notebox { border: 1px solid #1e293b; background: #0f172a; border-radius: 12px; padding: 16px; }
+      .dispo { border: 1px solid #334155; background: rgba(15,23,42,.6); border-radius: 10px; padding: 10px 12px; margin-top: 14px; }
+      .dispo .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; font-weight: 700; }
+      .dispo .none { color: #fb7185; font-size: .78rem; margin-top: 6px; }
+      .warn { font-size: .72rem; color: #64748b; }
+      footer { margin-top: 32px; padding-top: 14px; border-top: 1px solid #1e293b; font-size: .72rem; color: #64748b; }
+      .sessionline { margin: 4px 0; }
+      .range { color: #94a3b8; font-size: .78rem; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap" id="app"></div>
+    <script>
+      const FILMS = [
+        { t:"Mad Max: Fury Road", r:"George Miller", y:2015, g:"postapo", dur:120, p:["Netflix","Prime Video","VOD"], tags:["post-apo","course","visuel"], big:true, pitch:"Course-poursuite post-apo pure adrénaline, visuel dément.", why:"Post-apo avec un rythme d'enfer — l'exact contraire du « trop lent »." },
+        { t:"La Route", r:"John Hillcoat", y:2009, g:"postapo", dur:111, p:["VOD"], tags:["post-apo","drame","survie"], big:true, pitch:"Père et fils errant dans un monde mort, adaptation du roman de McCarthy.", why:"Fin du monde contemplative et déchirante, très ambiance." },
+        { t:"Snowpiercer", r:"Bong Joon-ho", y:2013, g:"postapo", dur:126, p:["Netflix","VOD"], tags:["post-apo","huis clos","classe"], big:false, pitch:"Train géant, derniers survivants de l'humanité, révolte de queue de train.", why:"Dystopie + huis clos + polarité sociale, tout ce que tu aimes." },
+        { t:"Children of Men", r:"Alfonso Cuarón", y:2006, g:"postapo", dur:109, p:["VOD"], tags:["post-apo","référence"], big:true, pitch:"Un de tes repères — candidat re-voir.", why:"Déjà adoré : à revoir sur vidéoprojecteur." },
+        { t:"Z for Zachariah", r:"Craig Zobel", y:2015, g:"postapo", dur:98, p:["VOD"], tags:["post-apo","triangle"], big:false, pitch:"Trois survivants post-apo, tension montante.", why:"⚠️ Indisponible sur tes plateformes FR lors du dernier essai — à re-vérifier." },
+        { t:"Le Dernier Combat", r:"Luc Besson", y:1983, g:"postapo", dur:91, p:["VOD"], tags:["post-apo","VF","francais"], big:false, pitch:"Post-apo bessonien quasi muet, curiosité française.", why:"Post-apo à la française, ambiance strange." },
+        { t:"Timecrimes (Los Cronocrímenes)", r:"Nacho Vigalondo", y:2007, g:"huisclos", dur:92, p:["VOD"], tags:["boucle","twist"], big:false, pitch:"Boucle temporelle low-budget espagnole.", why:"Vu : scénario bon, acting moyen — piste épuisée si Coherence t'a plu plus." },
+        { t:"The One I Love", r:"Charlie McDowell", y:2014, g:"huisclos", dur:91, p:["VOD"], tags:["twist","couple"], big:false, pitch:"Couple en retraite, maison d'hôtes étrange. À voir sans rien savoir.", why:"Sur ta liste d'attente — introuvable en streaming FR (oct. 2026), à re-vérifier (VOD possible)." },
+        { t:"Exam", r:"Stuart Hazeldine", y:2009, g:"huisclos", dur:101, p:["Prime Video","VOD"], tags:["huis clos","tension"], big:false, pitch:"Huit candidats, une salle, une question.", why:"Huis clos pur, 100 % tension scénaristique." },
+        { t:"Buried", r:"Rodrigo Cortés", y:2010, g:"huisclos", dur:95, p:["VOD"], tags:["huis clos","claustro"], big:false, pitch:"Un homme, un cercueil, un téléphone. Ryan Reynolds.", why:"Le huis clos ultime : un seul cadre pendant 90 minutes." },
+        { t:"La Cabane dans les bois", r:"Drew Goddard", y:2012, g:"huisclos", dur:95, p:["Netflix","VOD"], tags:["horreur","méta","twist"], big:false, pitch:"Horreur méta et inventive.", why:"Horreur qui sort des sentiers battus avec humour noir." },
+        { t:"The Lighthouse", r:"Robert Eggers", y:2019, g:"horreur", dur:110, p:["Prime Video","VOD"], tags:["huis clos","folie","NB"], big:true, pitch:"Deux gardiens de phare, le noir et blanc et le chaos.", why:"Eggers t'attire modérément : version huis clos plus radicale — grand écran conseillé." },
+        { t:"Saint Maud", r:"Rose Glass", y:2019, g:"horreur", dur:84, p:["Prime Video","VOD"], tags:["religieux","folie"], big:false, pitch:"Infirmière mystique, obsession divine.", why:"Horreur d'ambiance britannique, école A24." },
+        { t:"Talk to Me", r:"Philosoph & Witt", y:2022, g:"horreur", dur:95, p:["Prime Video","VOD"], tags:["possession","jeunes"], big:false, pitch:"Séance de spiritisme virale qui tourne mal.", why:"Horreur moderne, rythmée, pas ennuyeuse." },
+        { t:"Relic", r:"Natalie Erika James", y:2020, g:"horreur", dur:89, p:["VOD"], tags:["famille","démence"], big:false, pitch:"Trois générations, une maison qui se rétrécit.", why:"Horreur d'ambiance, métaphore de la démence — très His House dans l'esprit." },
+        { t:"Under the Shadow", r:"Babak Anvari", y:2016, g:"horreur", dur:84, p:["Netflix","VOD"], tags:["guerre","djinn"], big:false, pitch:"Téhéran sous les bombes, un djinn dans l'appartement.", why:"Horreur sociale + huis clos, comme His House que tu as adoré." },
+        { t:"Decision to Leave", r:"Park Chan-wook", y:2022, g:"thriller", dur:138, p:["VOD"], tags:["enquête","romance","twist"], big:true, pitch:"Inspecteur amoureux de sa suspecte.", why:"Ton réalisateur de prédilection — si pas encore vu, priorité absolue." },
+        { t:"Lady Vengeance", r:"Park Chan-wook", y:2005, g:"thriller", dur:115, p:["VOD"], tags:["vengeance","coréen"], big:false, pitch:"Dernier volet de la trilogie de la vengeance.", why:"Park Chan-wook, après Oldboy." },
+        { t:"Thirst, ceci est mon sang", r:"Park Chan-wook", y:2009, g:"thriller", dur:133, p:["VOD"], tags:["vampire","coréen"], big:false, pitch:"Prêtre devenu vampire.", why:"Park Chan-wook en mode horreur-romance extrême." },
+        { t:"Love", r:"Gaspar Noé", y:2015, g:"thriller", dur:135, p:["VOD"], tags:["vertige","3D"], big:true, pitch:"Noé en 3D, romance torride et vertigineuse.", why:"Un des rares Noé peut-être encore non visionnés — à confirmer vu/pas vu." },
+        { t:"Aftersun", r:"Charlotte Wells", y:2022, g:"thriller", dur:102, p:["Prime Video","VOD"], tags:["memoire","pere-fille"], big:true, pitch:"Vacances père-fille, souvenir qui se fissure.", why:"Lent mais bouleversant — pas un Haneke, ça vit." },
+        { t:"Memories of Murder", r:"Bong Joon-ho", y:2003, g:"thriller", dur:132, p:["VOD"], tags:["enquete","coreen"], big:true, pitch:"Enquête sur serial killer en Corée rurale.", why:"Obsession et impuissance, comme El secreto de sus ojos." },
+        { t:"Burning", r:"Lee Chang-dong", y:2018, g:"thriller", dur:148, p:["VOD"], tags:["coreen","ambigu"], big:true, pitch:"Triangle amoureux, disparition inquiétante.", why:"Thriller coréen d'ambiance — Park-adjacent." },
+        { t:"Heaven Knows What", r:"Safdie", y:2014, g:"debacle", dur:94, p:["VOD"], tags:["nocturne","crash"], big:false, pitch:"Avant Good Time, les frères Safdie dans la même urgence.", why:"Piste Safdie validée : le film juste avant Good Time." },
+        { t:"Good Time (re-voir)", r:"Safdie", y:2017, g:"debacle", dur:101, p:["VOD"], tags:["nocturne","OPN"], big:true, pitch:"Déjà adoré — candidat re-voir sur vidéoprojecteur.", why:"Le meilleur Safdie selon toi, bande-son Oneohtrix Point Never." },
+        { t:"Nightcrawler", r:"Dan Gilroy", y:2014, g:"debacle", dur:117, p:["Netflix","VOD"], tags:["nocturne","obsession"], big:true, pitch:"Freelance morbide des nuits de LA.", why:"Néo-noir nocturne + obsession : Joker-adjacent, Good Time-compatible." },
+        { t:"Taxi Driver (re-voir)", r:"Scorsese", y:1976, g:"debacle", dur:114, p:["Netflix","VOD"], tags:["nocturne","reference"], big:true, pitch:"Ton top — candidat re-voir en séance rétro.", why:"Classique de référence, à revoir au Pathé Palace / Rex si ressortie." },
+        { t:"Drive", r:"Nicolas Winding Refn", y:2011, g:"debacle", dur:100, p:["Prime Video","VOD"], tags:["neo-noir","synth"], big:true, pitch:"Chauffeur le jour, pilote de fuite la nuit.", why:"Néo-noir stylisé, ambiance totale." },
+        { t:"Croupier", r:"Mike Hodges", y:1998, g:"debacle", dur:91, p:["VOD"], tags:["casino","noir"], big:false, pitch:"Clive Owen, croupier et écrivain au bord de la chute.", why:"Noir britannique sobre, cousin d'Uncut Gems sans le chaos sonore." },
+        { t:"Mandibules", r:"Quentin Dupieux", y:2020, g:"comedie", dur:77, p:["Netflix","VOD"], tags:["absurde","VF"], big:false, pitch:"Deux bras cassés gardent une géante mouche.", why:"Dupieux validé (Yannick adoré) — absurde tendre, VF dispo." },
+        { t:"Le Deuxième Acte", r:"Quentin Dupieux", y:2024, g:"comedie", dur:77, p:["Netflix","VOD"], tags:["meta","VF"], big:false, pitch:"Quatre acteurs, un film qui déraille sur lui-même.", why:"Peut-être pas encore vu (à confirmer) — Dupieux méta, VF dispo." },
+        { t:"Fumer fait tousser", r:"Quentin Dupieux", y:2022, g:"comedie", dur:74, p:["Netflix","VOD"], tags:["absurde","VF"], big:false, pitch:"Équipe de « héros » en retraite digestive.", why:"Dupieux absurde, VF dispo." },
+        { t:"In the Loop", r:"Armando Iannucci", y:2009, g:"comedie", dur:106, p:["Prime Video","VOD"], tags:["satire","VF"], big:false, pitch:"Bureaucratie de la guerre, dialogues mitraillette.", why:"Cité par toi comme genre aimé mais pas encore vu — satire grinçante." },
+        { t:"La Mort de Staline", r:"Armando Iannucci", y:2017, g:"comedie", dur:106, p:["Netflix","VOD"], tags:["satire","VF"], big:false, pitch:"Le Politburo se déchire pour le pouvoir.", why:"Satire historique VF, cousin de Man Bites Dog." },
+        { t:"Le Grand Bain", r:"Gilles Lellouche", y:2018, g:"comedie", dur:122, p:["Netflix","VOD"], tags:["chaleur","VF"], big:false, pitch:"Détente chaleur humaine, pause entre deux Noé.", why:"Option « douceur » : alterner les styles, c'est ta méthode." },
+        { t:"Le Daim", r:"Quentin Dupieux", y:2019, g:"comedie", dur:80, p:["VOD"], tags:["obsession","VF"], big:false, pitch:"Un homme et son costume en daim.", why:"Dupieux obsessionnel — comédie noire VF." },
+        { t:"Ex Machina", r:"Alex Garland", y:2014, g:"sf", dur:108, p:["Prime Video","VOD"], tags:["IA","huis clos"], big:true, pitch:"Test de Turing en montagne.", why:"SF huis clos + IA — adulte et glaçant." },
+        { t:"Annihilation", r:"Alex Garland", y:2018, g:"sf", dur:115, p:["Netflix","VOD"], tags:["anomalie","organique"], big:true, pitch:"Expédition dans une zone qui réécrit la vie.", why:"SF d'ambiance sensorielle, fin vertigineuse — grand écran conseillé." },
+        { t:"Sunshine", r:"Danny Boyle", y:2007, g:"sf", dur:107, p:["VOD"], tags:["soleil","equipage"], big:true, pitch:"Réamorcer le soleil, huis clos spatial.", why:"SF de mission avec bascule horreur — entre Moon et Alien." },
+        { t:"Under the Skin", r:"Jonathan Glazer", y:2013, g:"sf", dur:108, p:["VOD"], tags:["alien","glauque"], big:true, pitch:"Scarlett Johansson, prédatrice à Glasgow.", why:"Radical mais hypnotique — ambiance > scénario, à toi de voir." },
+        { t:"Arrival", r:"Denis Villeneuve", y:2016, g:"sf", dur:116, p:["Netflix","VOD"], tags:["langue","temps"], big:true, pitch:"Linguiste face aux extraterrestres.", why:"Villeneuve validé (Dune adoré) — SF contemplative à twist émotionnel." },
+        { t:"Blade Runner 2049 (re-voir)", r:"Denis Villeneuve", y:2017, g:"sf", dur:164, p:["Netflix","VOD"], tags:["reference"], big:true, pitch:"« Bien mais moins » que l'original — mais LE film vidéoprojecteur.", why:"Re-voir sur très grand écran change tout." },
+        { t:"High Life", r:"Claire Denis", y:2018, g:"sf", dur:105, p:["Prime Video","VOD"], tags:["espace","corps"], big:false, pitch:"Condamnés à la dérive, black holes et désir.", why:"SF française exigeante mais avec des péripéties dures — pas un Haneke." },
+        { t:"Anon", r:"Andrew Niccol", y:2018, g:"sf", dur:100, p:["Netflix"], tags:["surveillance"], big:false, pitch:"Monde sans anonymat, un tueur en profite.", why:"Dystopie légère, concept maison type Oxygène." },
+        { t:"Infinity Chamber", r:"Travis Milloy", y:2016, g:"sf", dur:103, p:["Prime Video"], tags:["IA","prison"], big:false, pitch:"Prison automatisée, IA gardienne.", why:"Huis clos SF économique type Oxygène." },
+        { t:"Melville", r:"Joann Sfar", y:2023, g:"francais", dur:121, p:["Prime Video","VOD"], tags:["biopic","music"], big:false, pitch:"Vie de Melville à Saint-Germain.", why:"Classique français moderne — si attiré par la biographie." },
+        { t:"Bowling for Columbine", r:"Michael Moore", y:2002, g:"francais", dur:120, p:["VOD"], tags:["documentaire","armes"], big:false, pitch:"Doc polar sur l'Amérique armée.", why:"Tu apprécies les documentaires — accessible." },
+        { t:"Apollo 11", r:"Todd Douglas Miller", y:2019, g:"francais", dur:93, p:["Prime Video","VOD"], tags:["documentaire","archive"], big:true, pitch:"Archives Apollo, montage pur.", why:"Documentaire contemplatif et spectaculaire : parfait vidéoprojecteur." },
+        { t:"Borat", r:"Larry Charles", y:2006, g:"fauxdoc", dur:84, p:["Prime Video","VOD"], tags:["faux doc","provocation","VF"], big:false, pitch:"Le faux documentaire poussé à l'absurde.", why:"Cousin américain de Man Bites Dog — humour noir, VF dispo." },
+        { t:"This Is Spinal Tap", r:"Rob Reiner", y:1984, g:"fauxdoc", dur:82, p:["VOD"], tags:["faux doc","musique"], big:false, pitch:"Faux doc sur un groupe de rock ringard.", why:"Le fondateur du faux doc — 1984, antérieur à ton seuil comédie ~1990, mais pas une comédie FR classique." },
+      ];
+
+      const GENRES = [
+        { id:"postapo", label:"🌍 Post-apo / fin du monde", desc:"Ce qui te happe le plus" },
+        { id:"huisclos", label:"🚪 Huis clos & twists", desc:"Anxiogène, boucles, vertiges scénaristiques" },
+        { id:"horreur", label:"🕯️ Horreur d'ambiance", desc:"École A24, suggestif plutôt que jump scares" },
+        { id:"thriller", label:"🔪 Thriller / vengeance", desc:"Park Chan-wook, obsession, Noé" },
+        { id:"debacle", label:"🌃 Débâcle nocturne / néo-noir", desc:"Safdie, Nightcrawler, urgence urbaine" },
+        { id:"comedie", label:"😅 Comédie noire récente", desc:"Dupieux, satire — toujours en VF" },
+        { id:"sf", label:"🤖 SF contemplative / IA", desc:"IA, concepts, grands formats" },
+        { id:"francais", label:"🇫🇷 Français, docs & classiques", desc:"Cinéma français, documentaires" },
+        { id:"fauxdoc", label:"🎥 Faux doc & humour noir", desc:"Man Bites Dog et cousins" },
+      ];
+
+      const ENVIES = [
+        { id:"calme", label:"Spectacle visuel / grand écran", hint:"Parfait pour le vidéoprojecteur 📽️" },
+        { id:"nerveux", label:"Tension, rythme, péripéties", hint:"Rien de lent — promis, pas de Haneke 😄" },
+        { id:"cerveau", label:"Concept & twist à retourner", hint:"Boucles, twists, concepts à retourner" },
+        { id:"coeur", label:"Émotion & personnages", hint:"Drames, romance, personnages obsédants" },
+      ];
+
+      const NOTE_LABELS = ["Vraiment pas aimé", "Bof", "Bien", "À mettre dans mes références"];
+      const PLATEFORMES = ["Netflix", "Prime Video", "VOD"];
+      const LS = "findeur-films-state";
+      const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
+      let syncStatus = "🔵 Non synchronisé";
+
+      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], ratings:{}, pick:null };
+      try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
+
+      const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} };
+
+      const fmtH = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); };
+      const fmtDur = (m) => Math.floor(m/60) + "h" + String(m%60).padStart(2,"0");
+      const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+
+      const budget = () => state.debutMin !== null && state.coucheMin !== null ? ((state.coucheMin - state.debutMin + 1440) % 1440) - 10 : null;
+
+      const score = (f) => {
+        const map = {
+          calme: f.big ? 3 : 0,
+          nerveux: (f.tags.includes("tension")||f.tags.includes("course")||f.tags.includes("nocturne")) ? 3 : 0,
+          cerveau: (f.tags.includes("twist")||f.tags.includes("boucle")||f.tags.includes("IA")) ? 3 : 0,
+          coeur: (f.tags.includes("romance")||f.tags.includes("memoire")||f.tags.includes("famille")||f.tags.includes("pere-fille")) ? 3 : 0,
+        };
+        return (map[state.envie] || 0) + (f.p.length > 1 ? 1 : 0);
+      };
+
+      const stars = (film, size) => {
+        const r = state.ratings[film.t]?.v ?? 0;
+        let h = `<div class="stars">`;
+        for (let n = 1; n <= 3; n++) {
+          h += `<button class="${r >= n ? "on" : ""}" title="${NOTE_LABELS[n]}" onclick="setRating('${esc(film.t)}',${r === n ? n-1 : n})">${r >= n ? "★" : "☆"}</button>`;
+        }
+        h += `</div><span class="starlabel">${NOTE_LABELS[r]}</span>`;
+        return h;
+      };
+
+      const cardHTML = (f) => {
+        const b = budget();
+        const ok = b === null || f.dur <= b;
+        const fin = state.debutMin + f.dur;
+        const genreLabel = GENRES.find(g => g.id === f.g).label.replace(/^\S+\s/, "");
+        const vu = state.seen.includes(f.t);
+        return `<div class="card ${ok ? "" : "toolong"}">
+          <div class="row" style="justify-content:flex-start">
+            <div><div class="title">${esc(f.t)}</div>
+            <div class="meta">${esc(f.r)} · ${f.y} · ${genreLabel} · ⏱️ ${fmtDur(f.dur)}</div></div>
+            ${f.big ? '<span class="chip amber">🖥️ Mérite grand écran</span>' : ""}
+          </div>
+          ${b !== null ? (ok
+            ? `<div class="fit-ok">✓ finit vers ${fmtH(fin)} (couché ${fmtH(state.debutMin + b)})</div>`
+            : `<div class="fit-ko">⛔ trop long : finirait vers ${fmtH(fin)} pour un coucher à ${fmtH(state.debutMin + b)}</div>`) : ""}
+          <p class="pitch">${esc(f.pitch)}</p>
+          <p class="why">💡 ${esc(f.why)}</p>
+          <div>${f.p.map(p => `<span class="chip">${esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
+          <div class="row">
+            <div>
+              <button class="btn ${vu ? "vu-on" : ""}" onclick="toggleVu('${esc(f.t)}')">${vu ? "✅ Vu (retirer)" : "◻️ Pas vu (marquer vu)"}</button>
+              <button class="btn primary" onclick="setPick('${esc(f.t)}')">🎬 À voir — c'est mon choix</button>
+            </div>
+            <div>${stars(f)}</div>
+          </div>
+        </div>`;
+      };
+
+      // --- actions ---
+      window.setDebut = (m) => { state.debutMin = m; save(); render(); };
+      window.setCouche = (m) => { state.coucheMin = m; save(); render(); };
+      window.setCoucheInput = (v) => { const [h, mm] = v.split(":").map(Number); state.coucheMin = h*60+mm; save(); render(); };
+      window.goEtape = (n) => { state.etape = n; save(); render(); };
+      window.setGenre = (g) => { state.genre = g; state.etape = 2; save(); render(); };
+      window.setEnvie = (e) => { state.envie = e; state.etape = 3; save(); render(); };
+      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t); save(); render(); };
+      window.closePick = () => { state.pick = null; save(); render(); };
+      window.toggleVu = (t) => { state.seen = state.seen.includes(t) ? state.seen.filter(x => x !== t) : [...state.seen, t]; save(); schedulePush(); render(); };
+      window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; save(); schedulePush(); render(); };
+      window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); render(); };
+      window.toggleBig = () => { state.filters.big = !state.filters.big; save(); render(); };
+      window.togglePlat = (p) => {
+        state.filters.plateformes = state.filters.plateformes.includes(p)
+          ? state.filters.plateformes.filter(x => x !== p)
+          : [...state.filters.plateformes, p];
+        save(); render();
+      };
+      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], ratings:{}, pick:null };
+        try { localStorage.removeItem(LS); } catch (e) {} render(); };
+
+      // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
+      const getToken = () => { try { return localStorage.getItem(SYNC.tokenKey) || ""; } catch (e) { return ""; } };
+      const notesURL = () => `https://api.github.com/repos/${SYNC.owner}/${SYNC.dataRepo}/contents/${SYNC.path}?ref=${SYNC.branch}`;
+      const mergeNotes = (remote) => {
+        // fusion : la note la plus récente gagne par film ; seen = union
+        const merged = { ...state.ratings };
+        Object.entries(remote.ratings || {}).forEach(([t, e]) => {
+          const local = merged[t];
+          if (!local || (e.at || 0) > (local.at || 0)) merged[t] = e;
+        });
+        state.ratings = merged;
+        state.seen = [...new Set([...(remote.seen || []), ...state.seen])];
+        save();
+      };
+      const ghGetNotes = async () => {
+        const res = await fetch(notesURL(), { headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json" } });
+        if (res.status === 404) return { ratings: {}, seen: [], sha: undefined };
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const j = await res.json();
+        let notes = { ratings: {}, seen: [] };
+        try { notes = JSON.parse(atob(j.content.replace(/\n/g, ""))) || notes; } catch (e) {}
+        notes.sha = j.sha;
+        return notes;
+      };
+      const ghPutNotes = async (sha) => {
+        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, updatedAt: new Date().toISOString() }, null, 2));
+        const res = await fetch(notesURL(), {
+          method: "PUT",
+          headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Synchronisation notes Findeur de Films", content, sha, branch: SYNC.branch })
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+      };
+      let pushTimer = null, pushing = false;
+      window.schedulePush = () => {
+        if (!getToken()) { syncStatus = "⚪ Hors ligne — notes locales uniquement (réglages ⚙️ en bas)"; render(); return; }
+        clearTimeout(pushTimer);
+        pushTimer = setTimeout(async () => {
+          if (pushing) { schedulePush(); return; }
+          pushing = true; syncStatus = "🟡 Synchronisation…"; render();
+          try {
+            const remote = await ghGetNotes();
+            mergeNotes(remote);
+            await ghPutNotes(remote.sha);
+            syncStatus = "🟢 Synchronisé sur GitHub à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+          } catch (e) { syncStatus = "🔴 Erreur de synchronisation : " + e.message; }
+          pushing = false; render();
+        }, 3000);
+      };
+      window.syncNow = async () => {
+        if (!getToken()) { render(); return; }
+        syncStatus = "🟡 Synchronisation…"; render();
+        try {
+          const remote = await ghGetNotes();
+          mergeNotes(remote);
+          await ghPutNotes(remote.sha);
+          syncStatus = "🟢 Synchronisé sur GitHub à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+        } catch (e) { syncStatus = "🔴 Erreur de synchronisation : " + e.message; }
+        render();
+      };
+      window.saveToken = (val) => { try { localStorage.setItem(SYNC.tokenKey, val.trim()); } catch (e) {} syncNow(); };
+      window.initSync = async () => { if (getToken()) await syncNow(); };
+
+      const render = () => {
+        const app = document.getElementById("app");
+        let h = `<h1>🎬 Findeur de Films <span>— profil cinéphile Norbert</span></h1>
+          <p class="sub">Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.</p>`;
+
+        if (state.etape === 0) {
+          const b = budget();
+          h += `<h2>1️⃣ Tu te couches à quelle heure ce soir ?</h2>
+            <div class="grid">
+              <div class="slot"><p>🛋️ Début de la séance vers…</p>
+                ${[1200,1230,1260,1290,1320].map(m => `<button class="btn ${state.debutMin === m ? "vu-on" : ""}" onclick="setDebut(${m})">${fmtH(m)}</button>`).join("")}
+              </div>
+              <div class="slot"><p>🛏️ Coucher vers…</p>
+                ${[1350,1380,1410,0,30,60].map((m,i) => `<button class="btn ${state.coucheMin === m ? "vu-on" : ""}" onclick="setCouche(${m})">${i < 3 ? fmtH(m) : fmtH(m) + " (+1j)"}</button>`).join("")}
+                <input type="time" onchange="setCoucheInput(this.value)" />
+              </div>
+            </div>
+            ${b !== null ? `<p class="budgetline">🎯 Créneau : ${fmtDur((state.coucheMin - state.debutMin + 1440) % 1440)} de séance → ${fmtDur(b)} de film max (marge 10 min).</p>` : ""}
+            <p style="margin-top:16px"><button class="btn primary" ${state.debutMin === null || state.coucheMin === null ? "disabled" : ""} onclick="goEtape(1)">Continuer →</button></p>`;
+        }
+
+        if (state.etape === 1) {
+          h += `<h2>2️⃣ Quelle ambiance ce soir ?</h2><div class="grid">` +
+            GENRES.map(g => `<button class="btn-card" onclick="setGenre('${g.id}')"><b>${g.label}</b><small>${g.desc}</small></button>`).join("") +
+            `</div><p style="margin-top:12px"><button class="backlink" onclick="goEtape(0)">← changer l'heure</button></p>`;
+        }
+
+        if (state.etape === 2) {
+          h += `<h2>3️⃣ C'est quoi l'envie du moment ?</h2><div class="grid">` +
+            ENVIES.map(e => `<button class="btn-card" onclick="setEnvie('${e.id}')"><b>${e.label}</b><small>${e.hint}</small></button>`).join("") +
+            `</div><p style="margin-top:12px"><button class="backlink" onclick="goEtape(1)">← changer d'ambiance</button></p>`;
+        }
+
+        if (state.etape === 3 && !state.pick) {
+          const b = budget();
+          let results = FILMS.filter(f =>
+            f.g === state.genre &&
+            (!state.filters.big || f.big) &&
+            (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p)))
+          );
+          results.sort((a, c) => {
+            const okA = b === null || a.dur <= b ? 0 : 1, okC = b === null || c.dur <= b ? 0 : 1;
+            return okA - okC || score(c) - score(a);
+          });
+          h += `<div class="row"><h2>4️⃣ ${results.length} suggestion${results.length > 1 ? "s" : ""} · ${GENRES.find(g => g.id === state.genre).label}</h2>
+            <span class="range">⏰ séance ${fmtH(state.debutMin)} → coucher ${state.coucheMin < state.debutMin ? fmtH(state.coucheMin) : fmtH(state.coucheMin)} · ${fmtDur(b)} max</span>
+            <button class="backlink" onclick="reset()">recommencer</button></div>
+            <div class="filters">
+              <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
+              ${PLATEFORMES.map(p => `<label><input type="checkbox" ${state.filters.plateformes.includes(p) ? "checked" : ""} onchange="togglePlat('${p}')"> ${p}</label>`).join("")}
+            </div><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">` +
+            (results.length === 0 ? `<p class="range">Aucun film avec ces filtres — élargis ta sélection 😉</p>` :
+              results.map(cardHTML).join("")) +
+            `</div>`;
+        }
+
+        if (state.etape === 3 && state.pick) {
+          const f = state.pick, b = budget();
+          const r = state.ratings[f.t]?.v ?? 0;
+          h += `<div class="pickbox">
+            <div style="font-size:1.8rem">🍿</div>
+            <h2 style="margin:4px 0">${esc(f.t)}</h2>
+            <p class="meta">${esc(f.r)} · ${f.y}</p>
+            <p class="fit-ok">⏱️ ${fmtDur(f.dur)} · commence ${fmtH(state.debutMin)} → finit vers ${fmtH(state.debutMin + f.dur)} (coucher ${fmtH(state.debutMin + b)})</p>
+            <p class="pitch" style="margin-top:10px">${esc(f.pitch)}</p>
+            <p class="fit-ok" style="font-weight:600">💡 ${esc(f.why)}</p>
+            <div class="dispo">
+              <p class="lbl">📡 Disponibilité (à confirmer sur l'app)</p>
+              ${f.p.length > 0 ? f.p.map(p => `<span class="chip green">${p.includes("VOD") ? "💳 Location/achat VOD" : "📺 " + esc(p)}</span>`).join("") +
+                (f.g === "comedie" ? '<span class="chip green">VF requise — vérifie la piste VF</span>' : "")
+                : `<p class="none">⚠️ Aucune plateforme identifiée — vérifie sur JustWatch France.</p>`}
+            </div>
+            ${f.big ? '<div style="margin-top:8px"><span class="chip amber">🖥️ Mérite le vidéoprojecteur</span></div>' : ""}
+          </div>
+          <div class="notebox">
+            <p style="font-size:.9rem;font-weight:600;margin:0 0 8px">Ta note (affinera ton profil) :</p>
+            ${stars(f).replace('class="stars"','class="stars" style="font-size:1.6rem"')}
+            <p class="warn" style="margin-top:8px">0 = vraiment pas aimé · 1 = bof · 2 = bien · 3 = à mettre dans mes références. Un second clic sur l'étoile la retire.</p>
+            <p class="warn">⚠️ Confirme la disponibilité sur l'app de la plateforme (fiches VOD parfois fantômes).${f.g === "comedie" ? " Vérifie la VF." : ""} Bon film !</p>
+          </div>
+          <p style="margin-top:14px">
+            <button class="btn" onclick="closePick()">← Autres suggestions</button>
+            <button class="btn" onclick="reset()">🔄 Nouvelle session</button>
+          </p>`;
+        }
+
+        if (state.seen.length > 0 || Object.keys(state.ratings).length > 0) {
+          h += `<footer>`;
+          if (state.seen.length > 0) h += `<p class="sessionline">Marqués « vus » : ${state.seen.map(esc).join(", ")}</p>`;
+          if (Object.keys(state.ratings).length > 0) h += `<p class="sessionline">Notes : ${Object.entries(state.ratings).map(([t, e]) => `${esc(t)} ${"★".repeat(e.v)}${"☆".repeat(3-e.v)}${e.v === 3 ? " ⭐(référence)" : ""}`).join(" · ")}</p>`;
+
+          h += `<div class="dispo" style="margin-top:12px">
+            <p class="lbl">☁️ Synchronisation GitHub — profil cinéphile multi-appareils</p>
+            <p class="sessionline" style="margin-top:6px">${syncStatus}</p>
+            ${getToken() ? `<button class="btn" onclick="syncNow()">🔄 Synchroniser maintenant</button>` : `
+              <p class="sessionline" style="margin-top:6px">Colle ici ton personal access token GitHub (droits Contents: read & write, limité au dépôt <b>findeur-films-data</b>) :</p>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+                <input type="password" id="gh-token" placeholder="github_pat_..." style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" />
+                <button class="btn primary" onclick="saveToken(document.getElementById('gh-token').value)">Activer la sync</button>
+              </div>`}
+            <p class="warn" style="margin-top:6px">Le token reste stocké uniquement dans ce navigateur. Une fois la sync active, tes notes partagent le même profil sur tous tes appareils et une tâche planifiée Vibe les intègre à ton profil cinéphile matin et soir.</p>
+          </div>`;
+          h += `<button class="backlink" onclick="reset()">🗑️ vider la session</button></footer>`;
+        }
+
+        app.innerHTML = h;
+        window.scrollTo(0, 0);
+      };
+
+      render();
+      initSync();
+    </script>
+  </body>
+</html>
