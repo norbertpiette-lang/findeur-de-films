@@ -160,7 +160,7 @@
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
 
-      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, ratings:{}, pick:null };
+      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
       const IND_DELAY = 90 * 864e5; // rétention indisponibilité : 3 mois
       const isIndispo = (t) => (state.indispo?.[t] || 0) > 0 && Date.now() - state.indispo[t] < IND_DELAY;
@@ -286,7 +286,7 @@
       window.goEtape = (n) => { state.etape = n; save(); render(); };
       window.setGenre = (g) => { state.genre = g; state.etape = 2; save(); render(); };
       window.setEnvie = (e) => { state.envie = e; state.etape = 3; save(); render(); };
-      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t); save(); render(); };
+      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t); if (state.pick) { state.pickHistory[t] = state.pickHistory[t] || Date.now(); } save(); render(); };
       window.closePick = () => { state.pick = null; save(); render(); };
       window.toggleVu = (t) => {
         const now = Date.now();
@@ -338,6 +338,7 @@
         state.seenMap = mergeMap(remote.seenMap || Object.fromEntries((remote.seen || []).map((t) => [t, 0])), state.seenMap);
         state.seenDel = mergeMap(remote.seenDel, state.seenDel);
         state.indispo = mergeMap(remote.indispo, state.indispo);
+        state.pickHistory = mergeMap(remote.pickHistory, state.pickHistory);
         const mergedC = { ...(state.comments || {}) };
         Object.entries(remote.comments || {}).forEach(([t, c]) => {
           const local = mergedC[t];
@@ -358,7 +359,7 @@
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, updatedAt: new Date().toISOString() }, null, 2));
+        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -397,7 +398,18 @@
       window.initSync = async () => { if (getToken()) await syncNow(); };
 
       // --- Fenêtre « J'ai vu un film » : ajout avec vérification du titre ---
-      let __addResults = [], __addPicked = null, __addNote = null, __addTimer = null;
+      let __addResults = [], __addPicked = null, __addNote = null, __addTimer = null, __histTitles = [];
+      const pendingPicks = () => Object.keys(state.pickHistory || {})
+        .filter((t) => !state.seen.includes(t) && !state.ratings[t])
+        .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
+      window.pickFromHistory = (i) => {
+        const t = __histTitles[i];
+        const f = FILMS.find((x) => x.t === t) || { t, y: null };
+        __addPicked = { t, y: f.y, src: "🎬 ton choix « À voir »" };
+        const q = document.getElementById("add-q"); if (q) q.value = t;
+        document.getElementById("add-picked").innerHTML = `<div class="picked">✅ Titre vérifié : <b>${esc(t)}</b>${f.y ? " (" + f.y + ")" : ""} — <small>🎬 ton choix « À voir »</small></div>`;
+        document.getElementById("add-ok").disabled = false;
+      };
       const cleanTitle = (t) => t.replace(/\s*\((?:film|movie)\)/i, "");
       const titleYear = (t) => { const m = t.match(/\((\d{4})\)/); return { t: cleanTitle(t.replace(/\s*\(\d{4}\)\s*/, "")), y: m ? Number(m[1]) : null }; };
       window.renderAddStars = (sel) => {
@@ -410,12 +422,21 @@
       };
       window.setAddNote = (v) => { __addNote = v; window.renderAddStars(); };
       window.openAddModal = () => {
-        __addPicked = null; __addNote = null; __addResults = [];
+        __addPicked = null; __addNote = null; __addResults = []; __histTitles = pendingPicks();
+        const enAttente = __histTitles.length > 0
+          ? `<div id="add-hist" style="margin-bottom:12px">
+              <p class="lbl" style="margin:0 0 6px">🎬 Tes films « À voir » en attente — clique si c'est l'un d'eux :</p>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                ${__histTitles.map((t, i) => `<button class="sugg" style="width:auto;margin-top:0" onclick="pickFromHistory(${i})">${esc(t)}</button>`).join("")}
+              </div>
+            </div>`
+          : "";
         document.getElementById("modal-root").innerHTML = `
           <div class="mroot" onclick="if(event.target===this) closeAddModal()">
             <div class="mbox">
               <h2 style="margin:0 0 4px">➕ Un film que je viens de voir</h2>
               <p class="range" style="margin:0 0 10px">Tape le titre, puis choisis-le dans la liste : l'entrée n'est validable qu'avec un titre vérifié (catalogue + Wikipedia).</p>
+              ${enAttente}
               <input type="text" id="add-q" placeholder="Titre du film…" oninput="onAddSearch(this.value)"
                 style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem" />
               <div id="add-results"></div>
@@ -449,6 +470,7 @@
               <h2 style="margin:0 0 4px">⚙️ Synchronisation & réglages</h2>
               <p class="sessionline" style="margin:0 0 12px">${syncStatus}</p>
               <p class="lbl">Informations à synchroniser</p>
+              ${pendingPicks().length > 0 ? `<p class="sessionline">🎬 À voir (choix en attente) : ${pendingPicks().map(esc).join(", ")}</p>` : ""}
               ${state.seen.length > 0 ? `<p class="sessionline">Marqués « vus » : ${state.seen.map(esc).join(", ")}</p>` : ""}
               ${nbNotes > 0 ? `<p class="sessionline">Notes : ${Object.entries(state.ratings).map(([t, e]) => `${esc(t)} ${e.v === 0 ? "👎 (vraiment pas aimé)" : "★".repeat(e.v) + "☆".repeat(3-e.v) + (e.v === 3 ? " ⭐(référence)" : "")}`).join(" · ")}</p>` : ""}
               ${nbComs > 0 ? `<p class="sessionline">Commentaires : ${nbComs}</p>` : ""}
