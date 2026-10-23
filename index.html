@@ -160,7 +160,7 @@
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
 
-      let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
+      let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
       // films vus avant cette session : cachés des suggestions ; ceux marqués vus pendant la session restent affichés pour être notés
       let sessionSeen = new Set(state.seen);
@@ -206,7 +206,7 @@
           cerveau: (f.tags.includes("twist")||f.tags.includes("boucle")||f.tags.includes("IA")) ? 3 : 0,
           coeur: (f.tags.includes("romance")||f.tags.includes("memoire")||f.tags.includes("famille")||f.tags.includes("pere-fille")) ? 3 : 0,
         };
-        return (map[state.envie] || 0) + (f.p.length > 1 ? 1 : 0) +
+        return (map[state.envie] || 0) + (f.p.length > 1 ? 1 : 0) + noteBoost(f) +
           (f.p.some(p => ["Netflix", "Prime Video", "Sooner", "Cinéma", "Apple TV+"].includes(p)) ? 2 : 0); // accès facile privilégié
       };
 
@@ -322,6 +322,41 @@
       window.setCouche = (m) => { state.coucheMin = m; state.noTime = false; save(); render(); };
       window.clearDebut = () => { state.debutMin = null; save(); render(); };
       window.clearCouche = () => { state.coucheMin = null; save(); render(); };
+      // profil : statistiques de notes par ambiance — badges et alerte anti-enfermement
+      const genreProfile = () => {
+        const st = {};
+        GENRES.forEach((g) => { st[g.id] = { n: 0, pos: 0, neg: 0 }; });
+        Object.entries(state.ratings).forEach(([t, e]) => {
+          const f = FILMS.find((x) => x.t === t);
+          if (!f || !st[f.g]) return;
+          st[f.g].n++;
+          if (e.v === 3) st[f.g].pos++;
+          if (e.v <= 1) st[f.g].neg++;
+        });
+        return st;
+      };
+      const genreBadge = (gid) => { const s = genreProfile()[gid]; if (!s || s.n < 2) return ""; return s.neg > s.pos ? " 💤" : (s.pos >= 2 ? " 🔥" : ""); };
+      const profilHint = () => {
+        const st = genreProfile();
+        const total = Object.values(st).reduce((a, s) => a + s.n, 0);
+        if (total < 4) return "";
+        const sorted = Object.entries(st).sort((a, b) => b[1].n - a[1].n);
+        const [topId, top] = sorted[0];
+        if (top.n / total < 0.5) return "";
+        const vierges = GENRES.filter((g) => st[g.id].n === 0).slice(0, 2).map((g) => g.label);
+        if (!vierges.length) return "";
+        return `📊 Profil : ${top.n}/${total} de tes notes concernent « ${GENRES.find((g) => g.id === topId).label} » — pour varier : ${vierges.join(" ou ")}.`;
+      };
+      // notes libres : boost des films partageant les mots-clés de tes précisions
+      const noteBoost = (f) => {
+        const norm = (txt) => txt.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const words = norm((state.ambianceNote || "") + " " + (state.envieNote || "")).split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+        if (!words.length) return 0;
+        const hay = norm(f.t + " " + (f.pitch || "") + " " + (f.why || "") + " " + (f.tags || []).join(" ") + " " + f.r);
+        return words.filter((w) => hay.includes(w)).length * 4;
+      };
+      window.setAmbianceNote = (v) => { state.ambianceNote = v; save(); };
+      window.setEnvieNote = (v) => { state.envieNote = v; save(); };
       window.setNoTime = () => { state.noTime = true; state.debutMin = null; state.coucheMin = null; window.__jumpTop = true; save(); state.etape = 1; render(); };
       window.goEtape = (n) => { state.etape = n; window.__jumpTop = true; save(); render(); };
       window.setGenre = (g) => { state.genre = g; state.etape = 2; window.__jumpTop = true; save(); render(); };
@@ -354,7 +389,7 @@
         else state.indispo[t] = Date.now();
         save(); schedulePush(); window.__keepScroll = true; render();
       };
-      window.reset = () => { window.__jumpTop = true; state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
+      window.reset = () => { window.__jumpTop = true; state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
         try { localStorage.removeItem(LS); } catch (e) {} render(); };
 
       // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
@@ -399,7 +434,7 @@
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, updatedAt: new Date().toISOString() }, null, 2));
+        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -666,15 +701,26 @@
         }
 
         if (state.etape === 1) {
-          h += `<h2>2️⃣ Quelle ambiance ce soir ?</h2><div class="grid">` +
-            GENRES.map(g => `<button class="btn-card" onclick="setGenre('${g.id}')"><b>${g.label}</b><small>${g.desc}</small></button>`).join("") +
-            `</div><p style="margin-top:12px"><button class="backlink" onclick="goEtape(0)">← changer l'heure</button></p>`;
+          h += `<h2>2️⃣ Quelle ambiance ce soir ?</h2>
+            ${profilHint() ? `<p class="range" style="margin-top:2px">${profilHint()}</p>` : ""}
+            ${genreProfile() && Object.values(genreProfile()).some((s) => s.n >= 2) ? `<p class="range" style="margin-top:2px;color:#64748b">🔥 ambiance qui t'a plu · 💤 ambiance qui t'a déçu (d'après tes notes)</p>` : ""}
+            <div class="grid">` +
+            GENRES.map(g => `<button class="btn-card" onclick="setGenre('${g.id}')"><b>${g.label}${genreBadge(g.id)}</b><small>${g.desc}</small></button>`).join("") +
+            `</div>
+            <div class="slot" style="margin-top:12px"><p>✍️ Précise ton ambiance si besoin (optionnel) :</p>
+              <input type="text" value="${escAttr(state.ambianceNote || "")}" oninput="setAmbianceNote(this.value)" placeholder="ex. quelque chose de visuel, pas de found footage, de l'absurde décalé…" style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:8px 12px;font-size:.85rem" />
+            </div>
+            <p style="margin-top:12px"><button class="backlink" onclick="goEtape(0)">← changer l'heure</button></p>`;
         }
 
         if (state.etape === 2) {
           h += `<h2>3️⃣ C'est quoi l'envie du moment ?</h2><div class="grid">` +
             ENVIES.map(e => `<button class="btn-card" onclick="setEnvie('${e.id}')"><b>${e.label}</b><small>${e.hint}</small></button>`).join("") +
-            `</div><p style="margin-top:12px"><button class="backlink" onclick="goEtape(1)">← changer d'ambiance</button></p>`;
+            `</div>
+            <div class="slot" style="margin-top:12px"><p>✍️ Précise ton envie si besoin (optionnel) :</p>
+              <input type="text" value="${escAttr(state.envieNote || "")}" oninput="setEnvieNote(this.value)" placeholder="ex. un true crime bien lent, de la satire au vitriol…" style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:8px 12px;font-size:.85rem" />
+            </div>
+            <p style="margin-top:12px"><button class="backlink" onclick="goEtape(1)">← changer d'ambiance</button></p>`;
         }
 
         if (state.etape === 3 && !state.pick) {
