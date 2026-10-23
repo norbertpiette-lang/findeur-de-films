@@ -54,7 +54,7 @@
       .sugg:hover { background: #334155; }
       .sugg small { display: block; color: #94a3b8; font-size: .72rem; }
       .picked { border: 1px solid #059669; background: #064e3b; border-radius: 8px; padding: 6px 10px; margin-top: 8px; color: #6ee7b7; font-size: .85rem; }
-      .poster { width: 60px; min-height: 88px; border-radius: 6px; overflow: hidden; background: #1e293b; border: 1px solid #334155; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1.3rem; }
+      .poster { width: 72px; min-height: 104px; border-radius: 6px; overflow: hidden; background: #1e293b; border: 1px solid #334155; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1.4rem; }
       .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .starlabel { font-size: .72rem; color: #94a3b8; }
       .backlink { background: none; border: none; color: #64748b; font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; }
@@ -235,7 +235,7 @@
         const genreLabel = GENRES.find(g => g.id === f.g).label.replace(/^\S+\s/, "");
         const vu = state.seen.includes(f.t);
         return `<div class="card ${ok ? "" : "toolong"}">
-          <div class="row" style="justify-content:flex-start;align-items:flex-start">
+          <div class="row" style="justify-content:flex-start;align-items:flex-start;flex-wrap:nowrap">
             <div style="flex:1;min-width:0"><div class="title">${esc(f.t)}</div>
             <div class="meta">${esc(f.r)} · ${f.y} · ${genreLabel} · ⏱️ ${fmtDur(f.dur)}</div></div>
             ${f.big ? '<span class="chip amber">🖥️ Mérite grand écran</span>' : ""}</div>
