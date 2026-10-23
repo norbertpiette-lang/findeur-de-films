@@ -34,6 +34,12 @@
       .btn.primary { background: #047857; border-color: #047857; color: #fff; font-weight: 600; }
       .btn.vu-on { background: #047857; border-color: #059669; color: #fff; }
       .btn:disabled { background: #1e293b; color: #64748b; cursor: not-allowed; }
+      .toggle { position: relative; display: inline-flex; width: 150px; height: 30px; padding: 2px; background: #1e293b; border: 1px solid #334155; border-radius: 999px; cursor: pointer; overflow: hidden; }
+      .toggle .knob { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 4px); border-radius: 999px; background: #475569; transition: left .18s, background .18s; }
+      .toggle.on .knob { left: calc(50% + 2px); background: #059669; }
+      .toggle .t-lbl { flex: 1; display: flex; align-items: center; justify-content: center; font-size: .72rem; color: #94a3b8; position: relative; z-index: 1; transition: color .18s; }
+      .toggle:not(.on) .t-lbl.l { color: #fff; font-weight: 600; }
+      .toggle.on .t-lbl.r { color: #fff; font-weight: 600; }
       .stars button { font-size: 1.1rem; background: none; border: none; cursor: pointer; color: #475569; padding: 0 2px; transition: .1s; }
       .stars button:hover { transform: scale(1.15); }
       .stars button.on { color: #fbbf24; }
@@ -233,7 +239,11 @@
           <div>${f.p.map(p => `<span class="chip">${esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
           <div class="row">
             <div>
-              <button class="btn ${vu ? "vu-on" : ""}" onclick="toggleVu('${esc(f.t)}')">${vu ? "✅ Vu (retirer)" : "◻️ Pas vu (marquer vu)"}</button>
+              <button class="toggle ${vu ? "on" : ""}" onclick="toggleVu('${esc(f.t)}')" title="${vu ? "Marquer comme pas vu" : "Marquer comme vu"}">
+                <span class="knob"></span>
+                <span class="t-lbl l">Pas vu</span>
+                <span class="t-lbl r">Vu</span>
+              </button>
               ${vu ? "" : `<button class="btn primary" onclick="setPick('${esc(f.t)}')">🎬 À voir — c'est mon choix</button>`}
             </div>
             ${vu ? stars(f) : ""}
@@ -424,8 +434,7 @@
             <p style="font-size:.9rem;font-weight:600;margin:0 0 8px">Ta note (affinera ton profil) :</p>
             ${state.seen.includes(f.t)
               ? stars(f).replace('class="stars"','class="stars" style="font-size:1.6rem"')
-              : `<p class="range">Ce film n'est pas encore marqué comme vu — note-le après la séance.</p>
-                 <button class="btn" onclick="toggleVu('${esc(f.t)}')">✅ Je l'ai vu — le marquer pour le noter</button>`}
+              : `<button class="btn" onclick="toggleVu('${esc(f.t)}')">✅ Je l'ai vu — le marquer pour le noter</button>`}
             <p class="warn" style="margin-top:8px">0 = vraiment pas aimé · 1 = bof · 2 = bien · 3 = à mettre dans mes références. Un second clic sur l'étoile la retire.</p>
             <p class="warn">⚠️ Confirme la disponibilité sur l'app de la plateforme (fiches VOD parfois fantômes).${f.g === "comedie" ? " Vérifie la VF." : ""} Bon film !</p>
           </div>
