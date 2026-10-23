@@ -37,6 +37,11 @@
       .stars button { font-size: 1.1rem; background: none; border: none; cursor: pointer; color: #475569; padding: 0 2px; transition: .1s; }
       .stars button:hover { transform: scale(1.15); }
       .stars button.on { color: #fbbf24; }
+      .stars button.thumb-on { color: #fb7185; }
+      .gauge-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .gauge-lbl { font-size: .78rem; color: #94a3b8; white-space: nowrap; }
+      .gauge { height: 9px; background: #1e293b; border-radius: 999px; overflow: hidden; flex: 1 1 140px; max-width: 230px; }
+      .gauge-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #f59e0b, #10b981); }
       .starlabel { font-size: .72rem; color: #94a3b8; }
       .backlink { background: none; border: none; color: #64748b; font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; }
       .filters { display: flex; gap: 14px; flex-wrap: wrap; font-size: .8rem; align-items: center; color: #cbd5e1; }
@@ -160,14 +165,38 @@
         return (map[state.envie] || 0) + (f.p.length > 1 ? 1 : 0);
       };
 
-      const stars = (film, size) => {
-        const r = state.ratings[film.t]?.v ?? 0;
+      const stars = (film) => {
+        const r = state.ratings[film.t]?.v ?? null;
         let h = `<div class="stars">`;
+        h += `<button class="${r === 0 ? "thumb-on" : ""}" title="Vraiment pas aimé" onclick="setRating('${esc(film.t)}',0)">👎</button>`;
         for (let n = 1; n <= 3; n++) {
-          h += `<button class="${r >= n ? "on" : ""}" title="${NOTE_LABELS[n]}" onclick="setRating('${esc(film.t)}',${r === n ? n-1 : n})">${r >= n ? "★" : "☆"}</button>`;
+          h += `<button class="${r !== null && r >= n ? "on" : ""}" title="${NOTE_LABELS[n]}" onclick="setRating('${esc(film.t)}',${n})">${r !== null && r >= n ? "★" : "☆"}</button>`;
         }
-        h += `</div><span class="starlabel">${NOTE_LABELS[r]}</span>`;
+        h += `</div><span class="starlabel">${r !== null ? NOTE_LABELS[r] : "pas encore noté"}</span>`;
         return h;
+      };
+
+      // Probabilité que le film plaise, d'après le profil cinéphile
+      const proba = (f) => {
+        let p = 50;
+        const want = {
+          calme: f.big ? 15 : 0,
+          nerveux: (f.tags.includes("tension") || f.tags.includes("course") || f.tags.includes("nocturne")) ? 15 : 0,
+          cerveau: (f.tags.includes("twist") || f.tags.includes("boucle") || f.tags.includes("IA")) ? 15 : 0,
+          coeur: (f.tags.includes("romance") || f.tags.includes("memoire") || f.tags.includes("famille") || f.tags.includes("pere-fille")) ? 15 : 0,
+        };
+        p += want[state.envie] || 0;
+        if (f.tags.includes("post-apo")) p += 10;
+        if (f.tags.includes("huis clos") || f.tags.includes("claustro")) p += 8;
+        if (f.tags.includes("twist") || f.tags.includes("boucle")) p += 6;
+        if (f.tags.includes("IA")) p += 6;
+        if (["Park Chan-wook", "Quentin Dupieux", "Safdie", "Denis Villeneuve", "Bong Joon-ho", "Gaspar Noé"].some((d) => f.r.includes(d))) p += 8;
+        if (f.tags.includes("satire") || f.tags.includes("absurde") || f.tags.includes("faux doc")) p += 6;
+        if (f.g === "horreur") p += 4;
+        if (f.tags.includes("haneke")) p -= 20;
+        if (f.g === "comedie" && f.y < 1990) p -= 15;
+        if (f.p.length > 1) p += 3;
+        return Math.max(5, Math.min(95, Math.round(p)));
       };
 
       const cardHTML = (f) => {
@@ -187,13 +216,17 @@
             : `<div class="fit-ko">⛔ trop long : finirait vers ${fmtH(fin)} pour un coucher à ${fmtH(state.debutMin + b)}</div>`) : ""}
           <p class="pitch">${esc(f.pitch)}</p>
           <p class="why">💡 ${esc(f.why)}</p>
+          <div class="gauge-row">
+            <span class="gauge-lbl">🎯 ${proba(f)} % de chances de te plaire</span>
+            <div class="gauge"><div class="gauge-fill" style="width:${proba(f)}%"></div></div>
+          </div>
           <div>${f.p.map(p => `<span class="chip">${esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
           <div class="row">
             <div>
               <button class="btn ${vu ? "vu-on" : ""}" onclick="toggleVu('${esc(f.t)}')">${vu ? "✅ Vu (retirer)" : "◻️ Pas vu (marquer vu)"}</button>
-              <button class="btn primary" onclick="setPick('${esc(f.t)}')">🎬 À voir — c'est mon choix</button>
+              ${vu ? "" : `<button class="btn primary" onclick="setPick('${esc(f.t)}')">🎬 À voir — c'est mon choix</button>`}
             </div>
-            <div>${stars(f)}</div>
+            ${vu ? stars(f) : '<span class="starlabel">◻️ Marque « vu » pour noter ce film</span>'}
           </div>
         </div>`;
       };
@@ -359,7 +392,10 @@
           </div>
           <div class="notebox">
             <p style="font-size:.9rem;font-weight:600;margin:0 0 8px">Ta note (affinera ton profil) :</p>
-            ${stars(f).replace('class="stars"','class="stars" style="font-size:1.6rem"')}
+            ${state.seen.includes(f.t)
+              ? stars(f).replace('class="stars"','class="stars" style="font-size:1.6rem"')
+              : `<p class="range">Ce film n'est pas encore marqué comme vu — note-le après la séance.</p>
+                 <button class="btn" onclick="toggleVu('${esc(f.t)}')">✅ Je l'ai vu — le marquer pour le noter</button>`}
             <p class="warn" style="margin-top:8px">0 = vraiment pas aimé · 1 = bof · 2 = bien · 3 = à mettre dans mes références. Un second clic sur l'étoile la retire.</p>
             <p class="warn">⚠️ Confirme la disponibilité sur l'app de la plateforme (fiches VOD parfois fantômes).${f.g === "comedie" ? " Vérifie la VF." : ""} Bon film !</p>
           </div>
@@ -372,7 +408,7 @@
         if (state.seen.length > 0 || Object.keys(state.ratings).length > 0) {
           h += `<footer>`;
           if (state.seen.length > 0) h += `<p class="sessionline">Marqués « vus » : ${state.seen.map(esc).join(", ")}</p>`;
-          if (Object.keys(state.ratings).length > 0) h += `<p class="sessionline">Notes : ${Object.entries(state.ratings).map(([t, e]) => `${esc(t)} ${"★".repeat(e.v)}${"☆".repeat(3-e.v)}${e.v === 3 ? " ⭐(référence)" : ""}`).join(" · ")}</p>`;
+          if (Object.keys(state.ratings).length > 0) h += `<p class="sessionline">Notes : ${Object.entries(state.ratings).map(([t, e]) => `${esc(t)} ${e.v === 0 ? "👎 (vraiment pas aimé)" : "★".repeat(e.v) + "☆".repeat(3-e.v) + (e.v === 3 ? " ⭐(référence)" : "")}`).join(" · ")}</p>`;
 
           h += `<div class="dispo" style="margin-top:12px">
             <p class="lbl">☁️ Synchronisation GitHub — profil cinéphile multi-appareils</p>
