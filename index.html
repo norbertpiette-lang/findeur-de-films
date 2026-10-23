@@ -151,8 +151,10 @@
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
 
-      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, ratings:{}, pick:null };
+      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
+      const IND_DELAY = 90 * 864e5; // rétention indisponibilité : 3 mois
+      const isIndispo = (t) => (state.indispo?.[t] || 0) > 0 && Date.now() - state.indispo[t] < IND_DELAY;
       // migration ancien format : seen [] → seenMap avec horodatage 0
       if (!state.seenMap && Array.isArray(state.seen)) {
         state.seenMap = Object.fromEntries(state.seen.map((t) => [t, 0]));
@@ -247,6 +249,7 @@
                 <span class="t-lbl r">Vu</span>
               </button>
               ${vu ? "" : `<button class="btn primary" onclick="setPick('${esc(f.t)}')">🎬 À voir — c'est mon choix</button>`}
+              <button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${esc(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>
             </div>
             ${vu ? stars(f) : ""}
           </div>
@@ -283,7 +286,12 @@
           : [...state.filters.plateformes, p];
         save(); render();
       };
-      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, ratings:{}, pick:null };
+      window.toggleIndispo = (t) => {
+        if (isIndispo(t)) delete state.indispo[t];
+        else state.indispo[t] = Date.now();
+        save(); schedulePush(); render();
+      };
+      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, ratings:{}, pick:null };
         try { localStorage.removeItem(LS); } catch (e) {} render(); };
 
       // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
@@ -306,6 +314,7 @@
         };
         state.seenMap = mergeMap(remote.seenMap || Object.fromEntries((remote.seen || []).map((t) => [t, 0])), state.seenMap);
         state.seenDel = mergeMap(remote.seenDel, state.seenDel);
+        state.indispo = mergeMap(remote.indispo, state.indispo);
         recomputeSeen();
         save();
       };
@@ -320,7 +329,7 @@
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, updatedAt: new Date().toISOString() }, null, 2));
+        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -401,9 +410,11 @@
             f.g === state.genre &&
             f.p.some(p => ALLOWED.includes(p)) &&
             !(f.p.includes("Cinéma") && !isWE) &&
+            !isIndispo(f.t) &&
             (!state.filters.big || f.big) &&
             (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p)))
           );
+          const masques = FILMS.filter(f => f.g === state.genre && isIndispo(f.t));
           results.sort((a, c) => {
             const okA = b === null || a.dur <= b ? 0 : 1, okC = b === null || c.dur <= b ? 0 : 1;
             return okA - okC || score(c) - score(a);
@@ -417,7 +428,8 @@
             </div>
             <p class="range" style="margin-top:6px">${isWE
               ? "🍿 C'est le week-end : les sorties en salle (Pathé Palace Opéra · Grand Rex · Max Linder) sont incluses."
-              : "🎟️ Les films en salle apparaissent ici du vendredi au dimanche — en semaine, uniquement streamings et VOD."}</p><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">` +
+              : "🎟️ Les films en salle apparaissent ici du vendredi au dimanche — en semaine, uniquement streamings et VOD."}</p>
+            ${masques.length > 0 ? `<p class="range">🚫 ${masques.length} film${masques.length > 1 ? "s" : ""} masqué${masques.length > 1 ? "s" : ""} pour indisponibilité : ${masques.map(m => `${esc(m.t)} (revient le ${new Date(state.indispo[m.t] + IND_DELAY).toLocaleDateString("fr-FR")})`).join(" · ")}</p>` : ""}<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">` +
             (results.length === 0 ? `<p class="range">Aucun film avec ces filtres — élargis ta sélection 😉</p>` :
               results.map(cardHTML).join("")) +
             `</div>`;
