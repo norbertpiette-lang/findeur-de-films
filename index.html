@@ -581,6 +581,7 @@
             f.p.some(p => ALLOWED.includes(p)) &&
             !(f.p.includes("Cinéma") && !isWE) &&
             !isIndispo(f.t) &&
+            !state.seen.includes(f.t) &&
             (!state.filters.big || f.big) &&
             (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p)))
           );
