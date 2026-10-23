@@ -250,8 +250,8 @@
               <div class="meta">${esc(f.r)} · ${f.y} · ${genreLabel} · ⏱️ ${fmtDur(f.dur)}</div>
               ${f.big ? '<span class="chip amber">🖥️ Mérite grand écran</span>' : ""}</div>
               ${b !== null ? (ok
-                ? `<div class="fit-ok">✓ finit vers ${fmtH(fin)} (couché ${fmtH(state.debutMin + b)})</div>`
-                : `<div class="fit-ko">⛔ trop long : finirait vers ${fmtH(fin)} pour un coucher à ${fmtH(state.debutMin + b)}</div>`) : ""}
+                ? `<div class="fit-ok">✓ finit vers ${fmtH(fin)} (fin prévue ${fmtH(state.debutMin + b)})</div>`
+                : `<div class="fit-ko">⛔ trop long : finirait vers ${fmtH(fin)} pour une fin prévue à ${fmtH(state.debutMin + b)}</div>`) : ""}
               <p class="pitch">${esc(f.pitch)}</p>
               <p class="why">💡 ${esc(f.why)}</p>
               ${vu
@@ -281,6 +281,7 @@
 
       // --- actions ---
       window.setDebut = (m) => { state.debutMin = m; save(); render(); };
+      window.setDebutInput = (v) => { const [h, mm] = v.split(":").map(Number); state.debutMin = h*60+mm; save(); render(); };
       window.setCouche = (m) => { state.coucheMin = m; save(); render(); };
       window.setCoucheInput = (v) => { const [h, mm] = v.split(":").map(Number); state.coucheMin = h*60+mm; save(); render(); };
       window.goEtape = (n) => { state.etape = n; save(); render(); };
@@ -314,7 +315,7 @@
         else state.indispo[t] = Date.now();
         save(); schedulePush(); window.__keepScroll = true; render();
       };
-      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, ratings:{}, pick:null };
+      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
         try { localStorage.removeItem(LS); } catch (e) {} render(); };
 
       // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
@@ -544,12 +545,13 @@
 
         if (state.etape === 0) {
           const b = budget();
-          h += `<h2>1️⃣ Tu te couches à quelle heure ce soir ?</h2>
+          h += `<h2>1️⃣ Ta séance ce soir : début et fin ?</h2>
             <div class="grid">
               <div class="slot"><p>🛋️ Début de la séance vers…</p>
                 ${[1200,1230,1260,1290,1320].map(m => `<button class="btn ${state.debutMin === m ? "vu-on" : ""}" onclick="setDebut(${m})">${fmtH(m)}</button>`).join("")}
+                <input type="time" value="" onchange="setDebutInput(this.value)" />
               </div>
-              <div class="slot"><p>🛏️ Coucher vers…</p>
+              <div class="slot"><p>🏁 Fin de la séance vers…</p>
                 ${[1350,1380,1410,0,60].map((m,i) => `<button class="btn ${state.coucheMin === m ? "vu-on" : ""}" onclick="setCouche(${m})">${i < 3 ? fmtH(m) : fmtH(m) + " (+1j)"}</button>`).join("")}
                 <input type="time" value="" onchange="setCoucheInput(this.value)" />
               </div>
@@ -591,7 +593,7 @@
             return okA - okC || score(c) - score(a);
           });
           h += `<div class="row"><h2>4️⃣ ${results.length} suggestion${results.length > 1 ? "s" : ""} · ${GENRES.find(g => g.id === state.genre).label}</h2>
-            <span class="range">⏰ séance ${fmtH(state.debutMin)} → coucher ${state.coucheMin < state.debutMin ? fmtH(state.coucheMin) : fmtH(state.coucheMin)} · ${fmtDur(b)} max</span>
+            <span class="range">⏰ séance ${fmtH(state.debutMin)} → fin ${fmtH(state.coucheMin)} · ${fmtDur(b)} max</span>
             <button onclick="reset()" title="Recommencer depuis le début" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 4px">🏠</button></div>
             <div class="filters">
               <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
@@ -613,7 +615,7 @@
             <div style="font-size:1.8rem">🍿</div>
             <h2 style="margin:4px 0">${esc(f.t)}</h2>
             <p class="meta">${esc(f.r)} · ${f.y}</p>
-            <p class="fit-ok">⏱️ ${fmtDur(f.dur)} · commence ${fmtH(state.debutMin)} → finit vers ${fmtH(state.debutMin + f.dur)} (coucher ${fmtH(state.debutMin + b)})</p>
+            <p class="fit-ok">⏱️ ${fmtDur(f.dur)} · commence ${fmtH(state.debutMin)} → finit vers ${fmtH(state.debutMin + f.dur)} (fin prévue ${fmtH(state.debutMin + b)})</p>
             <p class="pitch" style="margin-top:10px">${esc(f.pitch)}</p>
             <p class="fit-ok" style="font-weight:600">💡 ${esc(f.why)}</p>
             <div class="dispo">
