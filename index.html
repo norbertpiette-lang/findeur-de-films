@@ -575,20 +575,26 @@
           </div>`;
         loadPosters();
       };
+      // films « À voir » de l'ambiance courante (compteur du bouton) ; le reste est listé à part dans la fenêtre
+      const picksInSelection = () => pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean).filter((f) => f.g === state.genre);
       const maybeRefreshSeen = () => { if (window.__seenOpen) openSeenModal(); if (window.__picksOpen) openPicksModal(); };
       window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
       window.openPicksModal = () => {
         window.__picksOpen = true;
-        const picks = pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean);
+        const sel = picksInSelection();
+        const autres = pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean).filter((f) => f.g !== state.genre);
+        const genreLabel = GENRES.find((g) => g.id === state.genre).label;
+        const cards = (arr, base) => arr.map((f, i) => cardHTML(f, base + i, "picks")).join("");
         document.getElementById("modal-root").innerHTML = `
           <div class="mroot" onclick="if(event.target===this) closePicksModal()">
             <div class="mbox" style="width:min(720px,96vw)">
-              <h2 style="margin:0 0 4px">🎬 Mes films « À voir » (${picks.length})</h2>
+              <h2 style="margin:0 0 4px">🎬 Mes films « À voir » — ${esc(genreLabel)} (${sel.length}${autres.length ? " · " + autres.length + " dans d'autres ambiances" : ""})</h2>
               <p class="range" style="margin:0 0 12px">Films choisis lors de précédentes recommandations, du plus récent au plus ancien. Marque-les « Vu » une fois regardés — ils quittent alors cette liste et enrichissent ton profil.</p>
               <div style="display:flex;flex-direction:column;gap:12px">
-                ${picks.length
-                  ? picks.map((f, i) => cardHTML(f, 950 + i, "picks")).join("")
-                  : `<p class="range">Aucun film « À voir » en attente — fais une recommandation et choisis un film !</p>`}
+                ${sel.length
+                  ? cards(sel, 950)
+                  : `<p class="range">Aucun film « À voir » en attente dans cette ambiance — fais une recommandation et choisis un film !</p>`}
+                ${autres.length ? `<p class="lbl" style="margin-top:8px">🎞️ Autres ambiances (${autres.length})</p>` + cards(autres, 1050) : ""}
               </div>
               <div style="display:flex;justify-content:flex-end;margin-top:14px">
                 <button class="btn primary" onclick="closePicksModal()">Fermer</button>
@@ -747,7 +753,7 @@
               <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
               ${PLATEFORMES.map(p => `<label><input type="checkbox" ${state.filters.plateformes.includes(p) ? "checked" : ""} onchange="togglePlat('${p}')"> ${p}</label>`).join("")}
             </div>
-            <p class="range" style="margin-top:6px"><button class="btn" onclick="openSeenModal()">👁️ Films déjà vus (${seenInSelection().length})</button> <button class="btn" onclick="openPicksModal()">🎬 À voir (${pendingPicks().length})</button></p>
+            <p class="range" style="margin-top:6px"><button class="btn" onclick="openSeenModal()">👁️ Films déjà vus (${seenInSelection().length})</button> <button class="btn" onclick="openPicksModal()">🎬 À voir (${picksInSelection().length})</button></p>
             <p class="range" style="margin-top:6px">${isWE
               ? "🍿 C'est le week-end : les sorties en salle (Pathé Palace Opéra · Grand Rex · Max Linder) sont incluses."
               : "🎟️ Les films en salle apparaissent ici du vendredi au dimanche — en semaine, uniquement streamings et VOD."}</p>
