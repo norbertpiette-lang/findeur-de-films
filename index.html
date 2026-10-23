@@ -882,10 +882,13 @@
           );
           const poolSel = (poolCache || []).filter((f) => f && f.g === state.genre && !getAdopted().some((x) => x.t === f.t) && !FILMS.some((c) => c.t === f.t) && !state.seen.includes(f.t) && !isSessionSeen(f.t) && !getPoolSeen().includes(f.t) && SELECTION_OK(f));
           const masques = FILMS.filter(f => f.g === state.genre && isIndispo(f.t));
-          results.sort((a, c) => {
+          // liste unique : stock + hors stock mélangés, classés par potentiel décroissant puis ordre alphabétique
+          const allResults = results.concat(poolSel);
+          allResults.sort((a, c) => {
             const okA = b === null || a.dur <= b ? 0 : 1, okC = b === null || c.dur <= b ? 0 : 1;
-            return okA - okC || score(c) - score(a);
+            return okA - okC || proba(c) - proba(a) || a.t.localeCompare(c.t, "fr");
           });
+          results = allResults;
           h += `<div class="row"><h2>4️⃣ ${results.length} suggestion${results.length > 1 ? "s" : ""} · ${GENRES.find(g => g.id === state.genre).label}</h2>
             <span class="range">${state.noTime ? "🕐 Sans contrainte horaire — toutes durées acceptées" : `⏰ séance ${fmtH(state.debutMin)} → fin ${fmtH(state.coucheMin)} · ${fmtDur(b)} max`}</span>
             <button onclick="reset()" title="Recommencer depuis le début" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 4px">🏠</button></div>
@@ -898,9 +901,8 @@
               ? "🍿 C'est le week-end : les sorties en salle (Pathé Palace Opéra · Grand Rex · Max Linder) sont incluses."
               : "🎟️ Les films en salle apparaissent ici du vendredi au dimanche — en semaine, uniquement streamings et VOD."}</p>
             ${masques.length > 0 ? `<p class="range">🚫 ${masques.length} film${masques.length > 1 ? "s" : ""} masqué${masques.length > 1 ? "s" : ""} pour indisponibilité : ${masques.map(m => `${esc(m.t)} (revient le ${new Date(state.indispo[m.t] + IND_DELAY).toLocaleDateString("fr-FR")})`).join(" · ")}</p>` : ""}<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">` +
-            (results.length === 0 && poolSel.length === 0 ? `<p class="range">Aucun film avec ces filtres — élargis ta sélection 😉</p>` :
+            (results.length === 0 ? `<p class="range">Aucun film avec ces filtres — élargis ta sélection 😉</p>` :
               results.map(cardHTML).join("")) +
-            (poolSel.length > 0 ? `<p class="lbl" style="margin-top:14px">🆕 Hors stock — suggestions du jour générées d'après ton profil (${poolSel.length})</p>` + poolSel.map((f, i) => cardHTML(f, 2000 + i)).join("") : "") +
             `</div>`;
         }
 
