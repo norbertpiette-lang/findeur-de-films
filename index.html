@@ -468,7 +468,7 @@
               </div>
               <div class="slot"><p>🛏️ Coucher vers…</p>
                 ${[1350,1380,1410,0,60].map((m,i) => `<button class="btn ${state.coucheMin === m ? "vu-on" : ""}" onclick="setCouche(${m})">${i < 3 ? fmtH(m) : fmtH(m) + " (+1j)"}</button>`).join("")}
-                <input type="time" onchange="setCoucheInput(this.value)" />
+                <input type="time" value="" onchange="setCoucheInput(this.value)" />
               </div>
             </div>
             ${b !== null ? `<p class="budgetline">🎯 Créneau : ${fmtDur((state.coucheMin - state.debutMin + 1440) % 1440)} de séance → ${fmtDur(b)} de film max (marge 10 min).</p>` : ""}
@@ -569,9 +569,9 @@
                 <button class="btn primary" onclick="saveToken(document.getElementById('gh-token').value)">Activer la sync</button>
               </div>`}
             <p class="warn" style="margin-top:6px">Le token reste stocké uniquement dans ce navigateur. Une fois la sync active, tes notes partagent le même profil sur tous tes appareils et une tâche planifiée Vibe les intègre à ton profil cinéphile matin et soir.</p>
-            <p class="sessionline" style="margin-top:8px">🖼️ Clé API TMDB (optionnel — affiches haute qualité, gratuite sur themoviedb.org) : <small>même configuration sur chaque appareil</small></p>
+            <p class="sessionline" style="margin-top:8px">🖼️ Affiches TMDB : <small>${getTmdbKey() === TMDB_KEY ? "✅ clé par défaut active" : "clé personnalisée enregistrée"} — laisse vide pour utiliser la clé intégrée</small></p>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-              <input type="password" id="tmdb-key" placeholder="clé API TMDB..." style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" value="${getTmdbKey().slice(0, 0)}" />
+              <input type="password" id="tmdb-key" placeholder="clé API TMDB personnalisée (optionnel)…" style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" />
               <button class="btn" onclick="saveTmdbKey(document.getElementById('tmdb-key').value)">Enregistrer</button>
             </div>
           </div>`;
@@ -599,7 +599,8 @@
         }
         return null;
       };
-      const getTmdbKey = () => { try { return localStorage.getItem("findeur-tmdb-key") || ""; } catch (e) { return ""; } };
+      const TMDB_KEY = "1f366fc9375213d96f03b38003d4cea6";
+      const getTmdbKey = () => { try { return localStorage.getItem("findeur-tmdb-key") || TMDB_KEY; } catch (e) { return TMDB_KEY; } };
       const tmdbPoster = async (t, y) => {
         const key = getTmdbKey();
         if (!key) return null;
