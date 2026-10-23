@@ -123,6 +123,8 @@
         { t:"Apollo 11", r:"Todd Douglas Miller", y:2019, g:"francais", dur:93, p:["Prime Video","VOD"], tags:["documentaire","archive"], big:true, pitch:"Archives Apollo, montage pur.", why:"Documentaire contemplatif et spectaculaire : parfait vidéoprojecteur." },
         { t:"Borat", r:"Larry Charles", y:2006, g:"fauxdoc", dur:84, p:["Prime Video","VOD"], tags:["faux doc","provocation","VF"], big:false, pitch:"Le faux documentaire poussé à l'absurde.", why:"Cousin américain de Man Bites Dog — humour noir, VF dispo." },
         { t:"This Is Spinal Tap", r:"Rob Reiner", y:1984, g:"fauxdoc", dur:82, p:["VOD"], tags:["faux doc","musique"], big:false, pitch:"Faux doc sur un groupe de rock ringard.", why:"Le fondateur du faux doc — 1984, antérieur à ton seuil comédie ~1990, mais pas une comédie FR classique." },
+        { t:"Babylon (ciné-concert)", r:"Damien Chazelle", y:2022, g:"debacle", dur:189, p:["Cinéma"], tags:["spectacle","ciné-concert","Hollywood","nocturne"], big:true, pitch:"Hollywood décadent des années 20, projeté en ciné-concert au Grand Rex (Grand Large) — dates du 22 au 24 octobre 2026, dès 25 €.", why:"Grand spectacle + musique live dans TA salle de référence : exactement le genre de sortie week-end que ton profil réclame. 3h09 — commence tôt !" },
+        { t:"Il était une fois... Virgin Suicides", r:"Sofia Coppola", y:1999, g:"huisclos", dur:97, p:["Cinéma"], tags:["ambiance","jeunesse","melancolie","huis clos"], big:true, pitch:"Resortie Pathé à partir du 5 novembre 2026 — d'abord au Pathé Palace Opéra. Le huis clos adolescent rêvé, ambiance étouffante et mélancolique.", why:"Ambiance suggestive au carré, cousin onirique de Bird (adoré). Format court + grand écran : parfait pour une soirée de semaine." },
       ];
 
       const GENRES = [
@@ -145,7 +147,7 @@
       ];
 
       const NOTE_LABELS = ["Vraiment pas aimé", "Bof", "Bien", "À mettre dans mes références"];
-      const PLATEFORMES = ["Netflix", "Prime Video", "VOD"];
+      const PLATEFORMES = ["Netflix", "Prime Video", "VOD", "Sooner", "Cinéma"];
       const LS = "findeur-films-state";
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
@@ -424,7 +426,7 @@
             <p class="fit-ok" style="font-weight:600">💡 ${esc(f.why)}</p>
             <div class="dispo">
               <p class="lbl">📡 Disponibilité (à confirmer sur l'app)</p>
-              ${f.p.length > 0 ? f.p.map(p => `<span class="chip green">${p.includes("VOD") ? "💳 Location/achat VOD" : "📺 " + esc(p)}</span>`).join("") +
+              ${f.p.length > 0 ? f.p.map(p => `<span class="chip green">${p.includes("VOD") ? "💳 Location/achat VOD" : p === "Cinéma" ? "🎟️ Cinéma (Pathé Palace Opéra · Grand Rex · Max Linder)" : p === "Sooner" ? "🎬 Sooner" : "📺 " + esc(p)}</span>`).join("") +
                 (f.g === "comedie" ? '<span class="chip green">VF requise — vérifie la piste VF</span>' : "")
                 : `<p class="none">⚠️ Aucune plateforme identifiée — vérifie sur JustWatch France.</p>`}
             </div>
