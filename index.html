@@ -160,6 +160,19 @@
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
 
+      // stock bonus : recommandations générées hors catalogue par la tâche planifiée « pool »
+      let poolCache = null;
+      const loadPool = async () => {
+        if (poolCache !== null) return;
+        try {
+          const r = await fetch(`https://raw.githubusercontent.com/${SYNC.owner}/${SYNC.dataRepo}/main/pool.json`, { cache: "no-store" });
+          poolCache = r.ok ? (await r.json()) : [];
+        } catch (e) { poolCache = []; }
+      };
+      const POOL_SEEN_KEY = "findeur-pool-seen";
+      const getPoolSeen = () => { try { return JSON.parse(localStorage.getItem(POOL_SEEN_KEY) || "[]"); } catch (e) { return []; } };
+      const addPoolSeen = (t) => { try { const l = getPoolSeen(); if (!l.includes(t)) { l.push(t); localStorage.setItem(POOL_SEEN_KEY, JSON.stringify(l)); } } catch (e) {} };
+
       let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
       // films vus avant cette session : cachés des suggestions ; ceux marqués vus pendant la session restent affichés pour être notés
@@ -361,7 +374,7 @@
       window.goEtape = (n) => { state.etape = n; window.__jumpTop = true; save(); render(); };
       window.setGenre = (g) => { state.genre = g; state.etape = 2; window.__jumpTop = true; save(); render(); };
       window.setEnvie = (e) => { state.envie = e; state.etape = 3; window.__jumpTop = true; save(); render(); };
-      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t); if (state.pick) { state.pickHistory[t] = state.pickHistory[t] || Date.now(); } window.__jumpTop = true; save(); render(); };
+      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t) || (poolCache || []).find(f => f.t === t); if (state.pick) { state.pickHistory[t] = state.pickHistory[t] || Date.now(); } window.__jumpTop = true; save(); render(); };
       window.closePick = () => { state.pick = null; save(); render(); };
       window.toggleVu = (t) => {
         const now = Date.now();
@@ -372,6 +385,7 @@
         } else { // ajout
           state.seenMap[t] = now;
           delete state.seenDel[t];
+          addPoolSeen(t); // mémoriser les films hors stock vus pour ne plus les suggérer
         }
         recomputeSeen(); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen();
       };
@@ -434,7 +448,7 @@
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
+        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -788,6 +802,7 @@
             !isIndispo(f.t) &&
             !isSessionSeen(f.t)
           );
+          const poolSel = (poolCache || []).filter((f) => f && f.g === state.genre && !FILMS.some((c) => c.t === f.t) && !state.seen.includes(f.t) && !isSessionSeen(f.t) && !getPoolSeen().includes(f.t) && SELECTION_OK(f));
           const masques = FILMS.filter(f => f.g === state.genre && isIndispo(f.t));
           results.sort((a, c) => {
             const okA = b === null || a.dur <= b ? 0 : 1, okC = b === null || c.dur <= b ? 0 : 1;
@@ -805,8 +820,9 @@
               ? "🍿 C'est le week-end : les sorties en salle (Pathé Palace Opéra · Grand Rex · Max Linder) sont incluses."
               : "🎟️ Les films en salle apparaissent ici du vendredi au dimanche — en semaine, uniquement streamings et VOD."}</p>
             ${masques.length > 0 ? `<p class="range">🚫 ${masques.length} film${masques.length > 1 ? "s" : ""} masqué${masques.length > 1 ? "s" : ""} pour indisponibilité : ${masques.map(m => `${esc(m.t)} (revient le ${new Date(state.indispo[m.t] + IND_DELAY).toLocaleDateString("fr-FR")})`).join(" · ")}</p>` : ""}<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">` +
-            (results.length === 0 ? `<p class="range">Aucun film avec ces filtres — élargis ta sélection 😉</p>` :
+            (results.length === 0 && poolSel.length === 0 ? `<p class="range">Aucun film avec ces filtres — élargis ta sélection 😉</p>` :
               results.map(cardHTML).join("")) +
+            (poolSel.length > 0 ? `<p class="lbl" style="margin-top:14px">🆕 Hors stock — suggestions du jour générées d'après ton profil (${poolSel.length})</p>` + poolSel.map((f, i) => cardHTML(f, 2000 + i)).join("") : "") +
             `</div>`;
         }
 
@@ -902,6 +918,7 @@
 
       // purge « Babylon » : correctif unique, exécuté une seule fois puis jamais relancé
       try { if (!localStorage.getItem("findeur-purge-babylon")) { if (purgePicks()) save(); localStorage.setItem("findeur-purge-babylon", "1"); } } catch (e) {}
+      loadPool().then(() => render()).catch(() => {});
       render();
       initSync();
     </script>
