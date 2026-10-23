@@ -47,7 +47,13 @@
       .gauge-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
       .gauge-lbl { font-size: .78rem; color: #94a3b8; white-space: nowrap; }
       .gauge { height: 9px; background: #1e293b; border-radius: 999px; overflow: hidden; flex: 1 1 140px; max-width: 230px; }
-      .gauge-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #f59e0b, #10b981); }
+        .gauge-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #f59e0b, #10b981); }
+      .mroot { position: fixed; inset: 0; background: rgba(2,6,23,.75); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+      .mbox { background: #0f172a; border: 1px solid #334155; border-radius: 16px; padding: 20px; width: min(500px, 94vw); max-height: 86vh; overflow: auto; }
+      .sugg { display: block; width: 100%; text-align: left; background: #1e293b; border: none; color: #e2e8f0; padding: 8px 10px; border-radius: 8px; margin-top: 4px; cursor: pointer; font-size: .85rem; }
+      .sugg:hover { background: #334155; }
+      .sugg small { display: block; color: #94a3b8; font-size: .72rem; }
+      .picked { border: 1px solid #059669; background: #064e3b; border-radius: 8px; padding: 6px 10px; margin-top: 8px; color: #6ee7b7; font-size: .85rem; }
       .starlabel { font-size: .72rem; color: #94a3b8; }
       .backlink { background: none; border: none; color: #64748b; font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; }
       .filters { display: flex; gap: 14px; flex-wrap: wrap; font-size: .8rem; align-items: center; color: #cbd5e1; }
@@ -71,6 +77,7 @@
   </head>
   <body>
     <div class="wrap" id="app"></div>
+    <div id="modal-root"></div>
     <script>
       const FILMS = [
         { t:"Mad Max: Fury Road", r:"George Miller", y:2015, g:"postapo", dur:120, p:["Netflix","Prime Video","VOD"], tags:["post-apo","course","visuel"], big:true, pitch:"Course-poursuite post-apo pure adrénaline, visuel dément.", why:"Post-apo avec un rythme d'enfer — l'exact contraire du « trop lent »." },
@@ -367,10 +374,85 @@
       window.saveToken = (val) => { try { localStorage.setItem(SYNC.tokenKey, val.trim()); } catch (e) {} syncNow(); };
       window.initSync = async () => { if (getToken()) await syncNow(); };
 
+      // --- Fenêtre « J'ai vu un film » : ajout avec vérification du titre ---
+      let __addResults = [], __addPicked = null, __addNote = null, __addTimer = null;
+      const cleanTitle = (t) => t.replace(/\s*\((?:film|movie)\)/i, "");
+      const titleYear = (t) => { const m = t.match(/\((\d{4})\)/); return { t: cleanTitle(t.replace(/\s*\(\d{4}\)\s*/, "")), y: m ? Number(m[1]) : null }; };
+      window.renderAddStars = (sel) => {
+        let h = "";
+        [["👎", 0], ["☆", 1], ["☆☆", 2], ["☆☆☆", 3]].forEach(([lbl, v]) => {
+          const on = __addNote === v;
+          h += `<button class="stars button ${v === 0 && on ? "thumb-on" : ""} ${v > 0 && on ? "on" : ""}" style="font-size:1.3rem;background:none;border:none;cursor:pointer;color:${on ? "#fbbf24" : "#475569"}" onclick="setAddNote(${v})">${v === 0 ? "👎" : (on ? "★".repeat(v) : lbl)}</button>`;
+        });
+        document.getElementById("add-stars").innerHTML = h + ` <span class="starlabel">${__addNote !== null ? NOTE_LABELS[__addNote] : "pas encore noté"}</span>`;
+      };
+      window.setAddNote = (v) => { __addNote = v; window.renderAddStars(); };
+      window.openAddModal = () => {
+        __addPicked = null; __addNote = null; __addResults = [];
+        document.getElementById("modal-root").innerHTML = `
+          <div class="mroot" onclick="if(event.target===this) closeAddModal()">
+            <div class="mbox">
+              <h2 style="margin:0 0 4px">➕ Un film que je viens de voir</h2>
+              <p class="range" style="margin:0 0 10px">Tape le titre, puis choisis-le dans la liste : l'entrée n'est validable qu'avec un titre vérifié (catalogue + Wikipedia).</p>
+              <input type="text" id="add-q" placeholder="Titre du film…" oninput="onAddSearch(this.value)"
+                style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem" />
+              <div id="add-results"></div>
+              <div id="add-picked"></div>
+              <div style="margin-top:14px">
+                <p style="font-size:.9rem;font-weight:600;margin:0 0 6px">Ta note :</p>
+                <div id="add-stars" style="display:flex;align-items:center;gap:4px"></div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+                <button class="btn" onclick="closeAddModal()">Annuler</button>
+                <button class="btn primary" id="add-ok" onclick="validateAdd()" disabled>Ajouter à mes films vus</button>
+              </div>
+            </div>
+          </div>`;
+        window.renderAddStars();
+        document.getElementById("add-q").focus();
+      };
+      window.closeAddModal = () => { document.getElementById("modal-root").innerHTML = ""; };
+      window.onAddSearch = (q) => {
+        clearTimeout(__addTimer);
+        if (q.trim().length < 2) { document.getElementById("add-results").innerHTML = ""; return; }
+        __addTimer = setTimeout(async () => {
+          const ql = q.trim().toLowerCase();
+          let list = [];
+          FILMS.forEach((f) => { if (f.t.toLowerCase().includes(ql)) list.push({ t: f.t, y: f.y, src: "📚 catalogue" }); });
+          try {
+            const r = await fetch(`https://fr.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q.trim())}&limit=8&namespace=0&format=json&origin=*`);
+            const j = await r.json();
+            (j[1] || []).forEach((raw, i) => {
+              const { t, y } = titleYear(raw);
+              if (!list.some((x) => x.t === t)) list.push({ t, y, d: (j[2] || [])[i], src: "🌐 Wikipédia" });
+            });
+          } catch (e) { /* hors ligne : catalogue local seulement */ }
+          __addResults = list.slice(0, 10);
+          document.getElementById("add-results").innerHTML = __addResults.length
+            ? __addResults.map((r, i) => `<button class="sugg" onclick="pickAdd(${i})"><b>${esc(r.t)}</b>${r.y ? " (" + r.y + ")" : ""} <small>${r.src}${r.d ? " — " + esc(String(r.d).slice(0, 90)) : ""}</small></button>`).join("")
+            : `<p class="range" style="margin-top:8px">❌ Aucun film trouvé pour « ${esc(q)} » — vérifie l'orthographe.</p>`;
+        }, 350);
+      };
+      window.pickAdd = (i) => {
+        const r = __addResults[i];
+        __addPicked = r;
+        document.getElementById("add-picked").innerHTML = `<div class="picked">✅ Titre vérifié : <b>${esc(r.t)}</b>${r.y ? " (" + r.y + ")" : ""} — <small>${esc(r.src)}</small></div>`;
+        document.getElementById("add-ok").disabled = false;
+      };
+      window.validateAdd = () => {
+        if (!__addPicked) return;
+        const t = __addPicked.t;
+        if (!state.seen.includes(t)) window.toggleVu(t);
+        if (__addNote !== null) window.setRating(t, __addNote);
+        window.closeAddModal();
+        render();
+      };
+
       const render = () => {
         const app = document.getElementById("app");
         let h = `<h1>🎬 Findeur de Films <span>— profil cinéphile Norbert</span></h1>
-          <p class="sub">Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.</p>`;
+          <p class="sub">Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.</p>
+          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button></p>`;
 
         if (state.etape === 0) {
           const b = budget();
