@@ -798,14 +798,14 @@ type: "text/html"
             <div class="mbox">
               <h2 style="margin:0 0 4px">⚙️ Synchronisation & réglages</h2>
               <p class="sessionline" style="margin:0 0 12px">${syncStatus}</p>
-              <p class="lbl">Informations à synchroniser</p>
+              <p class="lbl">Tes données cinéphiles (conservées sur cet appareil, copiées sur GitHub à chaque synchronisation)</p>
               <p class="sessionline">🎬 Liste « À voir » (choix en attente) : <b>${pendingPicks().length}</b></p>
               <p class="sessionline">👁️ Marqués « vus » : <b>${state.seen.length}</b></p>
               <p class="sessionline">⭐ Notes attribuées : <b>${nbNotes}</b></p>
               <p class="sessionline">💬 Commentaires : <b>${nbComs}</b></p>
               <p class="sessionline">🚫 Masqués pour indisponibilité : <b>${nbInd}</b></p>
               <p class="sessionline">📚 Films adoptés (hors stock) : <b>${getAdopted().length}</b></p>
-              ${state.seen.length === 0 && nbNotes === 0 && nbComs === 0 ? `<p class="range">Session vide — rien à synchroniser pour l'instant.</p>` : ""}
+              <p class="range">Ces données restent locales en permanence : la synchronisation en fait une copie sur GitHub — elle ne les consomme pas. Leurs nombres évoluent avec ton usage, pas avec les synchronisations.</p>
               <p class="lbl" style="margin-top:14px">☁️ Token GitHub</p>
               ${getToken()
                 ? `<p class="sessionline">✅ Token actif dans ce navigateur.</p>`
