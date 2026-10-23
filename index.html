@@ -590,15 +590,24 @@
           const raw = Object.keys(state.pickHistory || {})
             .filter((t) => !state.seen.includes(t) && !state.ratings[t])
             .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
-          const picks = raw.map((t) => FILMS.find((f) => f.t === t)).filter(Boolean);
+          // aucun filtre : les titres hors catalogue sont affichés aussi (carte simplifiée)
+          const cardsAll = raw.map((t, i) => {
+            const f = FILMS.find((x) => x.t === t);
+            if (f) return cardHTML(f, 950 + i, "picks");
+            return `<div class="card" style="border:1px solid #334155;border-radius:12px;padding:14px">
+              <h3 style="margin:0 0 4px">${esc(t)}</h3>
+              <p class="range" style="margin:0 0 8px">📌 Film hors catalogue de l'app (choix libre « À voir ») — aucune fiche détaillée disponible.</p>
+              <button class="btn" onclick="removePick('${escAttr(t)}')">❌ Retirer de « À voir »</button>
+            </div>`;
+          }).join("");
           document.getElementById("modal-root").innerHTML = `
             <div class="mroot" onclick="if(event.target===this) closePicksModal()">
               <div class="mbox" style="width:min(720px,96vw)">
-                <h2 style="margin:0 0 4px">🎬 Tous mes films « À voir » (${picks.length})</h2>
+                <h2 style="margin:0 0 4px">🎬 Tous mes films « À voir » (${raw.length})</h2>
                 <p class="range" style="margin:0 0 12px">Liste complète sans filtre — doublons inclus, du plus récent au plus ancien. Marque-les « Vu » ou retire-les pour nettoyer la liste.</p>
                 <div style="display:flex;flex-direction:column;gap:12px">
-                  ${picks.length
-                    ? picks.map((f, i) => cardHTML(f, 950 + i, "picks")).join("")
+                  ${raw.length
+                    ? cardsAll
                     : `<p class="range">Aucun film « À voir » en attente — fais une recommandation et choisis un film !</p>`}
                 </div>
                 <div style="display:flex;justify-content:flex-end;margin-top:14px">
