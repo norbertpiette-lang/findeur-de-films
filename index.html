@@ -160,7 +160,7 @@
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
 
-      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
+      let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
       // films vus avant cette session : cachés des suggestions ; ceux marqués vus pendant la session restent affichés pour être notés
       let sessionSeen = new Set(state.seen);
@@ -296,10 +296,11 @@
       };
 
       // --- actions ---
-      window.setDebut = (m) => { state.debutMin = m; save(); render(); };
-      window.setDebutInput = (v) => { if (!v || !v.includes(":")) return; const [h, mm] = v.split(":").map(Number); if (isNaN(h) || isNaN(mm)) return; state.debutMin = h*60+mm; save(); render(); };
-      window.setCouche = (m) => { state.coucheMin = m; save(); render(); };
-      window.setCoucheInput = (v) => { if (!v || !v.includes(":")) return; const [h, mm] = v.split(":").map(Number); if (isNaN(h) || isNaN(mm)) return; state.coucheMin = h*60+mm; save(); render(); };
+      window.setDebut = (m) => { state.debutMin = m; state.noTime = false; save(); render(); };
+      window.setDebutInput = (v) => { if (!v || !v.includes(":")) return; const [h, mm] = v.split(":").map(Number); if (isNaN(h) || isNaN(mm)) return; state.debutMin = h*60+mm; state.noTime = false; save(); render(); };
+      window.setCouche = (m) => { state.coucheMin = m; state.noTime = false; save(); render(); };
+      window.setCoucheInput = (v) => { if (!v || !v.includes(":")) return; const [h, mm] = v.split(":").map(Number); if (isNaN(h) || isNaN(mm)) return; state.coucheMin = h*60+mm; state.noTime = false; save(); render(); };
+      window.setNoTime = () => { state.noTime = true; state.debutMin = null; state.coucheMin = null; window.__jumpTop = true; save(); state.etape = 1; render(); };
       window.goEtape = (n) => { state.etape = n; window.__jumpTop = true; save(); render(); };
       window.setGenre = (g) => { state.genre = g; state.etape = 2; window.__jumpTop = true; save(); render(); };
       window.setEnvie = (e) => { state.envie = e; state.etape = 3; window.__jumpTop = true; save(); render(); };
@@ -331,7 +332,7 @@
         else state.indispo[t] = Date.now();
         save(); schedulePush(); window.__keepScroll = true; render();
       };
-      window.reset = () => { window.__jumpTop = true; state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
+      window.reset = () => { window.__jumpTop = true; state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
         try { localStorage.removeItem(LS); } catch (e) {} render(); };
 
       // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
@@ -638,7 +639,8 @@
               </div>
             </div>
             ${b !== null ? `<p class="budgetline">🎯 Créneau : ${fmtDur((state.coucheMin - state.debutMin + 1440) % 1440)} de séance → ${fmtDur(b)} de film max (marge 10 min).</p>` : ""}
-            <p style="margin-top:16px"><button class="btn primary" ${state.debutMin === null || state.coucheMin === null ? "disabled" : ""} onclick="goEtape(1)">Continuer →</button></p>`;
+            <p style="margin-top:16px"><button class="btn primary" ${!state.noTime && (state.debutMin === null || state.coucheMin === null) ? "disabled" : ""} onclick="goEtape(1)">Continuer →</button>
+            <button class="btn" onclick="setNoTime()" title="Suggestions sans limite de durée">🕐 Pas de contrainte horaire</button></p>`;
         }
 
         if (state.etape === 1) {
@@ -671,7 +673,7 @@
             return okA - okC || score(c) - score(a);
           });
           h += `<div class="row"><h2>4️⃣ ${results.length} suggestion${results.length > 1 ? "s" : ""} · ${GENRES.find(g => g.id === state.genre).label}</h2>
-            <span class="range">⏰ séance ${fmtH(state.debutMin)} → fin ${fmtH(state.coucheMin)} · ${fmtDur(b)} max</span>
+            <span class="range">${state.noTime ? "🕐 Sans contrainte horaire — toutes durées acceptées" : `⏰ séance ${fmtH(state.debutMin)} → fin ${fmtH(state.coucheMin)} · ${fmtDur(b)} max`}</span>
             <button onclick="reset()" title="Recommencer depuis le début" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 4px">🏠</button></div>
             <div class="filters">
               <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
