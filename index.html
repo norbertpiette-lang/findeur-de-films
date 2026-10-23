@@ -695,6 +695,40 @@
         loadPosters();
       };
       window.closeAddModal = () => { document.getElementById("modal-root").innerHTML = ""; };
+      window.openCatalogModal = () => {
+        const genreLabel = (gid) => { const g = GENRES.find((x) => x.id === gid); return g ? g.label.replace(/^\S+\s/, "") : "—"; };
+        const pickSet = new Set(pendingAll());
+        const row = (t, r, y, gid, plats, statut) => `<tr style="border-bottom:1px solid #334155">
+            <td style="padding:4px 8px">${esc(t)}${pickSet.has(t) ? " 🎬" : ""}</td>
+            <td style="padding:4px 8px">${esc(r || "—")}${y ? " (" + y + ")" : ""}</td>
+            <td style="padding:4px 8px">${esc(genreLabel(gid))}</td>
+            <td style="padding:4px 8px">${(plats || []).map(esc).join(", ") || "—"}</td>
+            <td style="padding:4px 8px">${statut}</td>
+          </tr>`;
+        const thead = `<tr style="border-bottom:2px solid #64748b;text-align:left">
+            <th style="padding:4px 8px">Titre</th><th style="padding:4px 8px">Réalisateur (année)</th><th style="padding:4px 8px">Ambiance</th><th style="padding:4px 8px">Plateformes</th><th style="padding:4px 8px">Statut</th>
+          </tr>`;
+        const statutOf = (t) => (state.seen.includes(t) ? "👁️ Vu" : (isIndispo(t) ? "🚫 Indisponible" : "Disponible"));
+        const adoptedTitles = new Set(getAdopted().map((f) => f.t));
+        const stockRows = FILMS.map((f) => row(f.t, f.r, f.y, f.g, f.p, (adoptedTitles.has(f.t) ? "📚 Stock · adopté" : "📚 Stock") + " · " + statutOf(f.t))).join("");
+        const poolRows = (poolCache || []).filter((f) => !FILMS.some((c) => c.t === f.t)).map((f) => row(f.t, f.r, f.y, f.g, f.p, "🆕 Hors stock" + (adoptedTitles.has(f.t) ? " · adopté" : "") + " · " + statutOf(f.t))).join("");
+        const voirRows = pendingAll().map((t) => { const f = findFilm(t); return row(t, f ? f.r : "—", f ? f.y : null, f ? f.g : null, f ? f.p : [], "🎬 À voir" + (f ? "" : " · hors catalogue")); }).join("");
+        const table = (label, count, rows) => `<p class="lbl" style="margin:14px 0 4px">${label} (${count})</p>
+          <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.8rem;min-width:560px">${thead}${rows || `<tr><td colspan="5" style="padding:6px 8px;color:#94a3b8">Aucun</td></tr>`}</table></div>`;
+        document.getElementById("modal-root").innerHTML = `
+          <div class="mroot" onclick="if(event.target===this) closeAddModal()">
+            <div class="mbox" style="width:min(860px,96vw);max-height:86vh;overflow-y:auto">
+              <h2 style="margin:0 0 4px">📋 Catalogue complet — ${FILMS.length + getAdopted().length} en stock · ${(poolCache || []).filter((f) => !FILMS.some((c) => c.t === f.t)).length} hors stock · ${pendingAll().length} à voir</h2>
+              <p class="range" style="margin:0 0 6px">Films déjà vus 👁️ · indisponibles 🚫 · en liste « À voir » 🎬 (marqués aussi dans leur catégorie d'origine).</p>
+              ${table("📚 En stock (catalogue de l'app + adoptés)", FILMS.length + getAdopted().length, stockRows + getAdopted().filter((f) => !FILMS.some((c) => c.t === f.t)).map((f) => row(f.t, f.r, f.y, f.g, f.p, "📚 Stock personnel · " + statutOf(f.t))).join(""))}
+              ${table("🆕 Hors stock (pool du jour)", (poolCache || []).filter((f) => !FILMS.some((c) => c.t === f.t)).length, poolRows)}
+              ${table("🎬 Liste « À voir » (sans filtre)", pendingAll().length, voirRows)}
+              <div style="display:flex;justify-content:flex-end;margin-top:14px">
+                <button class="btn primary" onclick="closeAddModal()">Fermer</button>
+              </div>
+            </div>
+          </div>`;
+      };
       window.openSyncModal = () => {
         const nbNotes = Object.keys(state.ratings).length;
         const nbComs = Object.keys(state.comments || {}).length;
@@ -727,7 +761,10 @@
               <p class="warn" style="margin-top:10px">Token et clé restent stockés uniquement dans ce navigateur. Une fois la sync active, tes notes partagent le même profil sur tous tes appareils et une tâche planifiée Vibe les intègre à ton profil cinéphile matin et soir.</p>
               <div style="display:flex;justify-content:space-between;gap:8px;margin-top:16px">
                 <button class="btn" onclick="reset(); closeAddModal()">🗑️ Vider la session</button>
-                <button class="btn primary" onclick="closeAddModal()">Fermer</button>
+                <span style="display:flex;gap:8px">
+                  <button class="btn" onclick="openCatalogModal()" title="Tableau de tous les films : stock, hors stock et liste À voir">📋 Catalogue</button>
+                  <button class="btn primary" onclick="closeAddModal()">Fermer</button>
+                </span>
               </div>
             </div>
           </div>`;
