@@ -749,11 +749,12 @@
               <h2 style="margin:0 0 4px">⚙️ Synchronisation & réglages</h2>
               <p class="sessionline" style="margin:0 0 12px">${syncStatus}</p>
               <p class="lbl">Informations à synchroniser</p>
-              ${pendingPicks().length > 0 ? `<p class="sessionline">🎬 À voir (choix en attente) : ${pendingPicks().map(esc).join(", ")}</p>` : ""}
-              ${state.seen.length > 0 ? `<p class="sessionline">Marqués « vus » : ${state.seen.map(esc).join(", ")}</p>` : ""}
-              ${nbNotes > 0 ? `<p class="sessionline">Notes : ${Object.entries(state.ratings).map(([t, e]) => `${esc(t)} ${e.v === 0 ? "👎 (vraiment pas aimé)" : "★".repeat(e.v) + "☆".repeat(3-e.v) + (e.v === 3 ? " ⭐(référence)" : "")}`).join(" · ")}</p>` : ""}
-              ${nbComs > 0 ? `<p class="sessionline">Commentaires : ${nbComs}</p>` : ""}
-              ${nbInd > 0 ? `<p class="sessionline">Masqués pour indisponibilité : ${nbInd}</p>` : ""}
+              <p class="sessionline">🎬 Liste « À voir » (choix en attente) : <b>${pendingPicks().length}</b></p>
+              <p class="sessionline">👁️ Marqués « vus » : <b>${state.seen.length}</b></p>
+              <p class="sessionline">⭐ Notes attribuées : <b>${nbNotes}</b></p>
+              <p class="sessionline">💬 Commentaires : <b>${nbComs}</b></p>
+              <p class="sessionline">🚫 Masqués pour indisponibilité : <b>${nbInd}</b></p>
+              <p class="sessionline">📚 Films adoptés (hors stock) : <b>${getAdopted().length}</b></p>
               ${state.seen.length === 0 && nbNotes === 0 && nbComs === 0 ? `<p class="range">Session vide — rien à synchroniser pour l'instant.</p>` : ""}
               <p class="lbl" style="margin-top:14px">☁️ Token GitHub</p>
               ${getToken()
