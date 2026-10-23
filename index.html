@@ -289,7 +289,7 @@
           state.seenMap[t] = now;
           delete state.seenDel[t];
         }
-        recomputeSeen(); save(); schedulePush(); render();
+        recomputeSeen(); save(); schedulePush(); window.__keepScroll = true; render();
       };
       window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; save(); schedulePush(); render(); };
       window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); render(); };
@@ -303,7 +303,7 @@
       window.toggleIndispo = (t) => {
         if (isIndispo(t)) delete state.indispo[t];
         else state.indispo[t] = Date.now();
-        save(); schedulePush(); render();
+        save(); schedulePush(); window.__keepScroll = true; render();
       };
       window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, ratings:{}, pick:null };
         try { localStorage.removeItem(LS); } catch (e) {} render(); };
@@ -581,7 +581,12 @@
         }
 
         app.innerHTML = h;
-        window.scrollTo(0, 0);
+        // conserver la position de défilement quand l'action ne change pas d'écran (toggles, notes…)
+        const keep = window.__keepScroll === true;
+        const sy = window.scrollY;
+        app.innerHTML = h;
+        if (keep) window.scrollTo(0, sy); else window.scrollTo(0, 0);
+        window.__keepScroll = false;
         loadPosters();
       };
 
