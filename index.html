@@ -146,7 +146,7 @@
       ];
 
       const NOTE_LABELS = ["Vraiment pas aimé", "Bof", "Bien", "À mettre dans mes références"];
-      const PLATEFORMES = ["Netflix", "Prime Video", "VOD", "Sooner", "Cinéma"];
+      const PLATEFORMES = ["Netflix", "Prime Video", "Apple TV+", "VOD", "Sooner", "Cinéma"];
       const LS = "findeur-films-state";
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
@@ -236,10 +236,10 @@
             : `<div class="fit-ko">⛔ trop long : finirait vers ${fmtH(fin)} pour un coucher à ${fmtH(state.debutMin + b)}</div>`) : ""}
           <p class="pitch">${esc(f.pitch)}</p>
           <p class="why">💡 ${esc(f.why)}</p>
-          <div class="gauge-row">
+          ${vu ? "" : `<div class="gauge-row">
             <span class="gauge-lbl">🎯 ${proba(f)} % de chances de te plaire</span>
             <div class="gauge"><div class="gauge-fill" style="width:${proba(f)}%"></div></div>
-          </div>
+          </div>`}
           <div>${f.p.map(p => `<span class="chip">${esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
           <div class="row">
             <div>
