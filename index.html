@@ -567,6 +567,11 @@
                 <button class="btn primary" onclick="saveToken(document.getElementById('gh-token').value)">Activer la sync</button>
               </div>`}
             <p class="warn" style="margin-top:6px">Le token reste stocké uniquement dans ce navigateur. Une fois la sync active, tes notes partagent le même profil sur tous tes appareils et une tâche planifiée Vibe les intègre à ton profil cinéphile matin et soir.</p>
+            <p class="sessionline" style="margin-top:8px">🖼️ Clé API TMDB (optionnel — affiches haute qualité, gratuite sur themoviedb.org) : <small>même configuration sur chaque appareil</small></p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+              <input type="password" id="tmdb-key" placeholder="clé API TMDB..." style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" value="${getTmdbKey().slice(0, 0)}" />
+              <button class="btn" onclick="saveTmdbKey(document.getElementById('tmdb-key').value)">Enregistrer</button>
+            </div>
           </div>`;
           h += `<button class="backlink" onclick="reset()">🗑️ vider la session</button></footer>`;
         }
@@ -582,20 +587,44 @@
       try { posterCache = JSON.parse(localStorage.getItem(POSTER_KEY) || "{}") || {}; } catch (e) {}
       const savePosterCache = () => { try { localStorage.setItem(POSTER_KEY, JSON.stringify(posterCache)); } catch (e) {} };
       const wikiPoster = async (t) => {
-        for (const q of [t, t + " (film)", t + " (film, " + (t.match(/\d{4}/) ? "" : "") + ")"].slice(0, 2)) {
-          try {
-            const r = await fetch("https://fr.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(q));
-            if (r.ok) { const j = await r.json(); if (j.thumbnail && j.thumbnail.source) return j.thumbnail.source; }
-          } catch (e) { /* hors ligne */ }
+        for (const lang of ["fr", "en"]) {
+          for (const q of [t, t + " (film)"]) {
+            try {
+              const r = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/` + encodeURIComponent(q));
+              if (r.ok) { const j = await r.json(); if (j.thumbnail && j.thumbnail.source) return j.thumbnail.source; }
+            } catch (e) { /* hors ligne */ }
+          }
         }
         return null;
+      };
+      const getTmdbKey = () => { try { return localStorage.getItem("findeur-tmdb-key") || ""; } catch (e) { return ""; } };
+      const tmdbPoster = async (t, y) => {
+        const key = getTmdbKey();
+        if (!key) return null;
+        try {
+          const r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${key}&query=${encodeURIComponent(t)}&language=fr-FR`);
+          if (!r.ok) return null;
+          const j = await r.json();
+          const hits = (j.results || []).filter(m => m.poster_path);
+          const hit = y ? (hits.find(m => (m.release_date || "").startsWith(String(y))) || hits[0]) : hits[0];
+          return hit ? "https://image.tmdb.org/t/p/w185" + hit.poster_path : null;
+        } catch (e) { return null; }
       };
       const loadPosters = async () => {
         document.querySelectorAll(".poster").forEach(async (el) => {
           const t = el.dataset.title;
-          if (!(t in posterCache)) { posterCache[t] = await wikiPoster(t); savePosterCache(); }
+          if (!(t in posterCache)) {
+            const y = (FILMS.find(f => f.t === t) || {}).y;
+            posterCache[t] = (await tmdbPoster(t, y)) || (await wikiPoster(t));
+            savePosterCache();
+          }
           if (posterCache[t]) el.innerHTML = '<img src="' + posterCache[t] + '" alt="' + esc(t) + '" loading="lazy" />';
         });
+      };
+      window.saveTmdbKey = (val) => {
+        try { localStorage.setItem("findeur-tmdb-key", val.trim()); } catch (e) {}
+        posterCache = {}; try { localStorage.removeItem(POSTER_KEY); } catch (e) {}
+        render();
       };
 
       render();
