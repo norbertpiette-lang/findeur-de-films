@@ -770,9 +770,12 @@ type: "text/html"
           </tr>`;
         const statutOf = (t) => (state.seen.includes(t) ? "👁️ Vu" : (isIndispo(t) ? "🚫 Indisponible" : "Disponible"));
         const adoptedTitles = new Set(getAdopted().map((f) => f.t));
-        const stockRows = FILMS.map((f) => row(f.t, f.r, f.y, f.g, f.p, (adoptedTitles.has(f.t) ? "📚 Stock · adopté" : "📚 Stock") + " · " + statutOf(f.t))).join("");
-        const poolRows = (poolCache || []).filter((f) => !FILMS.some((c) => c.t === f.t)).map((f) => row(f.t, f.r, f.y, f.g, f.p, "🆕 Hors stock" + (adoptedTitles.has(f.t) ? " · adopté" : "") + " · " + statutOf(f.t))).join("");
-        const voirRows = pendingAll().map((t) => { const f = findFilm(t); return row(t, f ? f.r : "—", f ? f.y : null, f ? f.g : null, f ? f.p : [], "🎬 À voir" + (f ? "" : " · hors catalogue")); }).join("");
+        const byTitle = (a, c) => a.t.localeCompare(c.t, "fr");
+        const stockList = FILMS.concat(getAdopted().filter((f) => !FILMS.some((c) => c.t === f.t))).sort(byTitle);
+        const stockRows = stockList.map((f) => row(f.t, f.r, f.y, f.g, f.p, (adoptedTitles.has(f.t) && !FILMS.some((c) => c.t === f.t) ? "📚 Stock personnel · " : "📚 Stock") + " · " + statutOf(f.t))).join("");
+        const poolList = (poolCache || []).filter((f) => !FILMS.some((c) => c.t === f.t)).sort(byTitle);
+        const poolRows = poolList.map((f) => row(f.t, f.r, f.y, f.g, f.p, "🆕 Hors stock" + (adoptedTitles.has(f.t) ? " · adopté" : "") + " · " + statutOf(f.t))).join("");
+        const voirRows = pendingAll().slice().sort((a, c) => a.localeCompare(c, "fr")).map((t) => { const f = findFilm(t); return row(t, f ? f.r : "—", f ? f.y : null, f ? f.g : null, f ? f.p : [], "🎬 À voir" + (f ? "" : " · hors catalogue")); }).join("");
         const table = (label, count, rows) => `<p class="lbl" style="margin:14px 0 4px">${label} (${count})</p>
           <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.8rem;min-width:560px">${thead}${rows || `<tr><td colspan="5" style="padding:6px 8px;color:#94a3b8">Aucun</td></tr>`}</table></div>`;
         document.getElementById("modal-root").innerHTML = `
