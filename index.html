@@ -160,7 +160,7 @@
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
 
-      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, ratings:{}, pick:null };
+      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
       const IND_DELAY = 90 * 864e5; // rétention indisponibilité : 3 mois
       const isIndispo = (t) => (state.indispo?.[t] || 0) > 0 && Date.now() - state.indispo[t] < IND_DELAY;
@@ -225,6 +225,15 @@
         if (f.tags.includes("haneke")) p -= 20;
         if (f.g === "comedie" && f.y < 1990) p -= 15;
         if (f.p.length > 1) p += 3;
+        // affinage par commentaires : proximité (genre, tags, réalisateur) avec un film commenté et noté
+        Object.entries(state.comments || {}).forEach(([ct, cc]) => {
+          const src = FILMS.find((x) => x.t === ct);
+          const rv = state.ratings[ct]?.v;
+          if (!src || rv === undefined || rv === null) return;
+          const sim = src.g === f.g || src.tags.some((tg) => f.tags.includes(tg)) || src.r === f.r;
+          if (!sim) return;
+          if (rv <= 1) p -= 7; else if (rv === 3) p += 7;
+        });
         return Math.max(5, Math.min(95, Math.round(p)));
       };
 
@@ -305,7 +314,7 @@
         else state.indispo[t] = Date.now();
         save(); schedulePush(); window.__keepScroll = true; render();
       };
-      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, ratings:{}, pick:null };
+      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, ratings:{}, pick:null };
         try { localStorage.removeItem(LS); } catch (e) {} render(); };
 
       // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
@@ -329,6 +338,12 @@
         state.seenMap = mergeMap(remote.seenMap || Object.fromEntries((remote.seen || []).map((t) => [t, 0])), state.seenMap);
         state.seenDel = mergeMap(remote.seenDel, state.seenDel);
         state.indispo = mergeMap(remote.indispo, state.indispo);
+        const mergedC = { ...(state.comments || {}) };
+        Object.entries(remote.comments || {}).forEach(([t, c]) => {
+          const local = mergedC[t];
+          if (!local || (c.at || 0) > (local.at || 0)) mergedC[t] = c;
+        });
+        state.comments = mergedC;
         recomputeSeen();
         save();
       };
@@ -343,7 +358,7 @@
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, updatedAt: new Date().toISOString() }, null, 2));
+        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -409,6 +424,11 @@
                 <p style="font-size:.9rem;font-weight:600;margin:0 0 6px">Ta note :</p>
                 <div id="add-stars" style="display:flex;align-items:center;gap:4px"></div>
               </div>
+              <div style="margin-top:12px">
+                <p style="font-size:.9rem;font-weight:600;margin:0 0 6px">Pourquoi ? <small style="font-weight:400;color:#94a3b8">— affinera ton profil et les suggestions</small></p>
+                <textarea id="add-comment" rows="3" placeholder="Ce qui t'a plu ou déplu : ambiance, rythme, réalisation, acteurs, intrigue…"
+                  style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:9px 12px;font-size:.85rem;font-family:inherit;resize:vertical"></textarea>
+              </div>
               <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
                 <button class="btn" onclick="closeAddModal()">Annuler</button>
                 <button class="btn primary" id="add-ok" onclick="validateAdd()" disabled>Ajouter à mes films vus</button>
@@ -449,8 +469,11 @@
       window.validateAdd = () => {
         if (!__addPicked) return;
         const t = __addPicked.t;
+        const c = ((document.getElementById("add-comment") || {}).value || "").trim();
+        if (c) state.comments[t] = { text: c, at: Date.now() };
         if (!state.seen.includes(t)) window.toggleVu(t);
         if (__addNote !== null) window.setRating(t, __addNote);
+        if (c) { save(); schedulePush(); }
         window.closeAddModal();
         render();
       };
