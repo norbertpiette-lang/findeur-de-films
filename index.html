@@ -211,6 +211,7 @@
       };
 
       // commentaire personnel : proposé à côté de la note partout où les étoiles apparaissent
+      window.removePick = (t) => { delete state.pickHistory[t]; save(); schedulePush(); if (window.__picksOpen) openPicksModal(); };
       window.addComment = (t) => {
         const existing = (state.comments[t] || {}).text || "";
         const v = window.prompt("Ton commentaire sur ce film (ce qui t'a plu ou déplu : ambiance, rythme, réalisation… — il affinera ton profil cinéphile) :", existing);
@@ -263,7 +264,7 @@
         return Math.max(5, Math.min(95, Math.round(p)));
       };
 
-      const cardHTML = (f, i) => {
+      const cardHTML = (f, i, opts) => {
         const b = budget();
         const ok = b === null || f.dur <= b;
         const fin = state.debutMin + f.dur;
@@ -297,7 +298,9 @@
                 <span class="t-lbl l">Pas vu</span>
                 <span class="t-lbl r">Vu</span>
               </button>
-              ${vu ? "" : `<button class="btn primary" onclick="setPick('${escAttr(f.t)}')">🎬 À voir — c'est mon choix</button>`}
+              ${vu ? "" : (opts === "picks"
+                ? `<button class="btn" title="Retirer ce film de ma liste « À voir »" onclick="removePick('${escAttr(f.t)}')">❌ Retirer de « À voir »</button>`
+                : `<button class="btn primary" onclick="setPick('${escAttr(f.t)}')">🎬 À voir — c'est mon choix</button>`)}
               <button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${escAttr(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>
             </div>
             ${vu ? stars(f) : ""}
@@ -549,7 +552,7 @@
               <p class="range" style="margin:0 0 12px">Films choisis lors de précédentes recommandations, du plus récent au plus ancien. Marque-les « Vu » une fois regardés — ils quittent alors cette liste et enrichissent ton profil.</p>
               <div style="display:flex;flex-direction:column;gap:12px">
                 ${picks.length
-                  ? picks.map((f, i) => cardHTML(f, 950 + i)).join("")
+                  ? picks.map((f, i) => cardHTML(f, 950 + i, "picks")).join("")
                   : `<p class="range">Aucun film « À voir » en attente — fais une recommandation et choisis un film !</p>`}
               </div>
               <div style="display:flex;justify-content:flex-end;margin-top:14px">
