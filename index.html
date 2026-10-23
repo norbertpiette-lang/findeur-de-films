@@ -598,7 +598,8 @@
         loadPosters();
       };
       // films « À voir » de l'ambiance courante (compteur du bouton) ; le reste est listé à part dans la fenêtre
-      const picksInSelection = () => pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean).filter((f) => f.g === state.genre);
+      const findFilm = (t) => FILMS.find((x) => x.t === t) || (poolCache || []).find((x) => x.t === t) || null;
+      const picksInSelection = () => pendingPicks().filter((t) => { const f = findFilm(t); return !!f && f.g === state.genre; });
       // liste brute « À voir » (sans fusion, doublons inclus) — compteur du bouton de la première page
       const pendingAll = () => Object.keys(state.pickHistory || {})
         .filter((t) => !state.seen.includes(t) && !state.ratings[t])
@@ -642,10 +643,22 @@
           return;
         }
         const hasGenre = !!state.genre;
-        const sel = hasGenre ? picksInSelection() : pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean);
-        const autres = hasGenre ? pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean).filter((f) => f.g !== state.genre) : [];
+        const sel = hasGenre ? picksInSelection().map((t) => findFilm(t)) : pendingPicks().map((t) => findFilm(t));
+        const autresTitres = hasGenre ? pendingPicks().filter((t) => !picksInSelection().includes(t)) : [];
+        const autres = autresTitres.map((t) => findFilm(t));
+        // titres hors catalogue (ni stock ni pool) : cartes simplifiées pour ne rien masquer
+        const horsCat = autresTitres.filter((t) => !findFilm(t));
         const genreLabel = hasGenre ? GENRES.find((g) => g.id === state.genre).label : "toutes ambiances";
-        const cards = (arr, base) => arr.map((f, i) => cardHTML(f, base + i, "picks")).join("");
+        const cardOrSimple = (t, idx) => {
+          const f = findFilm(t);
+          if (f) return cardHTML(f, 950 + idx, "picks");
+          return `<div class="card" style="border:1px solid #334155;border-radius:12px;padding:14px">
+            <h3 style="margin:0 0 4px">${esc(t)}</h3>
+            <p class="range" style="margin:0 0 8px">📌 Film hors catalogue de l'app (choix libre « À voir »).</p>
+            <button class="btn" onclick="removePick('${escAttr(t)}')">❌ Retirer de « À voir »</button>
+          </div>`;
+        };
+        const listCards = (titres, base) => titres.map((t, i) => cardOrSimple(t, base + i)).join("");
         document.getElementById("modal-root").innerHTML = `
           <div class="mroot" onclick="if(event.target===this) closePicksModal()">
             <div class="mbox" style="width:min(720px,96vw)">
@@ -653,9 +666,9 @@
               <p class="range" style="margin:0 0 12px">Films choisis lors de précédentes recommandations, du plus récent au plus ancien. Marque-les « Vu » une fois regardés — ils quittent alors cette liste et enrichissent ton profil.</p>
               <div style="display:flex;flex-direction:column;gap:12px">
                 ${sel.length
-                  ? cards(sel, 950)
+                  ? listCards(hasGenre ? picksInSelection() : pendingPicks(), 950)
                   : `<p class="range">Aucun film « À voir » en attente${hasGenre ? " dans cette ambiance" : ""} — fais une recommandation et choisis un film !</p>`}
-                ${autres.length ? `<p class="lbl" style="margin-top:8px">🎞️ Autres ambiances (${autres.length})</p>` + cards(autres, 1050) : ""}
+                ${autres.length ? `<p class="lbl" style="margin-top:8px">🎞️ Autres ambiances (${autres.length})</p>` + listCards(autresTitres, 1050) : ""}
               </div>
               <div style="display:flex;justify-content:flex-end;margin-top:14px">
                 <button class="btn primary" onclick="closePicksModal()">Fermer</button>
