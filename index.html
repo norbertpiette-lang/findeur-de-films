@@ -155,7 +155,7 @@
       ];
 
       const NOTE_LABELS = ["Vraiment pas aimé", "Bof", "Bien", "À mettre dans mes références"];
-      const PLATEFORMES = ["Netflix", "Prime Video", "Apple TV+", "VOD", "Sooner", "Cinéma"];
+      const PLATEFORMES = ["Netflix", "Prime Video", "Apple TV+", "VOD", "Sooner", "Arte", "YouTube", "Cinéma"];
       const LS = "findeur-films-state";
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
@@ -723,7 +723,7 @@
             <p class="fit-ok" style="font-weight:600">💡 ${esc(f.why)}</p>
             <div class="dispo">
               <p class="lbl">📡 Disponibilité (à confirmer sur l'app)</p>
-              ${f.p.length > 0 ? f.p.map(p => `<span class="chip green">${p.includes("VOD") ? "💳 Location/achat VOD" : p === "Cinéma" ? "🎟️ Cinéma (Pathé Palace Opéra · Grand Rex · Max Linder)" : p === "Sooner" ? "🎬 Sooner" : "📺 " + esc(p)}</span>`).join("") +
+              ${f.p.length > 0 ? f.p.map(p => `<span class="chip green">${p.includes("VOD") ? "💳 Location/achat VOD" : p === "Cinéma" ? "🎟️ Cinéma (Pathé Palace Opéra · Grand Rex · Max Linder)" : p === "Sooner" ? "🎬 Sooner" : p === "Arte" ? "🎨 Arte (replay gratuit)" : p === "YouTube" ? "▶️ YouTube (location/achat)" : "📺 " + esc(p)}</span>`).join("") +
                 (f.g === "comedie" ? '<span class="chip green">VF requise — vérifie la piste VF</span>' : "")
                 : `<p class="none">⚠️ Aucune plateforme identifiée — vérifie sur JustWatch France.</p>`}
             </div>
