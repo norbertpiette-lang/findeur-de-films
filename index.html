@@ -670,11 +670,8 @@
           return;
         }
         const hasGenre = !!state.genre;
-        const sel = hasGenre ? picksInSelection().map((t) => findFilm(t)) : pendingPicks().map((t) => findFilm(t));
-        const autresTitres = hasGenre ? pendingPicks().filter((t) => !picksInSelection().includes(t)) : [];
-        const autres = autresTitres.map((t) => findFilm(t));
-        // titres hors catalogue (ni stock ni pool) : cartes simplifiées pour ne rien masquer
-        const horsCat = autresTitres.filter((t) => !findFilm(t));
+        const selTitres = hasGenre ? picksInSelection() : pendingPicks();
+        const sel = selTitres.map((t) => findFilm(t));
         const genreLabel = hasGenre ? GENRES.find((g) => g.id === state.genre).label : "toutes ambiances";
         const cardOrSimple = (t, idx) => {
           const f = findFilm(t);
@@ -689,13 +686,12 @@
         document.getElementById("modal-root").innerHTML = `
           <div class="mroot" onclick="if(event.target===this) closePicksModal()">
             <div class="mbox" style="width:min(720px,96vw)">
-              <h2 style="margin:0 0 4px">🎬 Mes films « À voir » — ${esc(genreLabel)} (${sel.length}${autres.length ? " · " + autres.length + " dans d'autres ambiances" : ""})</h2>
-              <p class="range" style="margin:0 0 12px">Films choisis lors de précédentes recommandations, du plus récent au plus ancien. Marque-les « Vu » une fois regardés — ils quittent alors cette liste et enrichissent ton profil.</p>
+              <h2 style="margin:0 0 4px">🎬 Mes films « À voir » — ${esc(genreLabel)} (${sel.length})</h2>
+              <p class="range" style="margin:0 0 12px">Films choisis lors de précédentes recommandations dans cette ambiance, du plus récent au plus ancien — les autres ambiances sont accessibles depuis le bouton « À voir » de la première page. Marque-les « Vu » une fois regardés — ils quittent alors cette liste et enrichissent ton profil.</p>
               <div style="display:flex;flex-direction:column;gap:12px">
                 ${sel.length
-                  ? listCards(hasGenre ? picksInSelection() : pendingPicks(), 950)
+                  ? listCards(selTitres, 950)
                   : `<p class="range">Aucun film « À voir » en attente${hasGenre ? " dans cette ambiance" : ""} — fais une recommandation et choisis un film !</p>`}
-                ${autres.length ? `<p class="lbl" style="margin-top:8px">🎞️ Autres ambiances (${autres.length})</p>` + listCards(autresTitres, 1050) : ""}
               </div>
               <div style="display:flex;justify-content:flex-end;margin-top:14px">
                 <button class="btn primary" onclick="closePicksModal()">Fermer</button>
