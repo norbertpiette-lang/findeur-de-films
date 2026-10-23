@@ -216,6 +216,11 @@ type: "text/html"
         const l = getAdopted();
         if (!l.some((x) => x.t === t)) { l.push(f); setAdopted(l); save(); schedulePush(); }
       };
+      // adoption directe d'un objet film (ajout manuel « J'ai vu un film ») : le film rejoint le stock personnel
+      const adoptRaw = (f) => {
+        const l = getAdopted();
+        if (!l.some((x) => x.t === f.t)) { l.push(f); setAdopted(l); save(); schedulePush(); }
+      };
 
       let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
@@ -855,6 +860,7 @@ type: "text/html"
       window.validateAdd = () => {
         if (!__addPicked) return;
         const t = __addPicked.t;
+        if (!findFilm(t)) adoptRaw({ t, r: "—", y: __addPicked.y || null, g: null, dur: 0, p: [], tags: [], big: false, pitch: "Ajouté manuellement via « J'ai vu un film ».", why: "" });
         const c = ((document.getElementById("add-comment") || {}).value || "").trim();
         if (c) state.comments[t] = { text: c, at: Date.now() };
         if (!state.seen.includes(t)) window.toggleVu(t);
