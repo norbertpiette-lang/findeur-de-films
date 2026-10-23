@@ -624,16 +624,12 @@
             ${f.big ? '<div style="margin-top:8px"><span class="chip amber">🖥️ Mérite le vidéoprojecteur</span></div>' : ""}
           </div>
           <div class="notebox">
-            <p style="font-size:.9rem;font-weight:600;margin:0 0 8px">Ta note (affinera ton profil) :</p>
-            ${state.seen.includes(f.t)
-              ? stars(f).replace('class="stars"','class="stars" style="font-size:1.6rem"')
-              : `<button class="btn" onclick="toggleVu('${esc(f.t)}')">✅ Je l'ai vu — le marquer pour le noter</button>`}
-            <p class="warn" style="margin-top:8px">0 = vraiment pas aimé · 1 = bof · 2 = bien · 3 = à mettre dans mes références. Un second clic sur l'étoile la retire.</p>
-            <p class="warn">⚠️ Confirme la disponibilité sur l'app de la plateforme (fiches VOD parfois fantômes).${f.g === "comedie" ? " Vérifie la VF." : ""} Bon film !</p>
+            <p class="warn">🎬 Bon film ! Note-le après la séance via le bouton « ➕ J'ai vu un film » — ton profil cinéphile s'enrichira de ta note et de ton commentaire.</p>
+            <p class="warn">⚠️ Confirme la disponibilité sur l'app de la plateforme (fiches VOD parfois fantômes).${f.g === "comedie" ? " Vérifie la VF." : ""}</p>
           </div>
           <p style="margin-top:14px">
             <button class="btn" onclick="closePick()">← Autres suggestions</button>
-            <button class="btn" onclick="reset()">🔄 Nouvelle session</button>
+            <button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button>
           </p>`;
         }
           h += `<footer>`;
