@@ -168,7 +168,7 @@
       const IND_DELAY = 90 * 864e5; // rétention indisponibilité : 3 mois
       // critères communs de sélection (utilisés par les suggestions ET la liste des films déjà vus)
       const SELECTION_OK = (f) => {
-        const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Cinéma"];
+        const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Arte", "YouTube", "Cinéma"];
         const isWE = [5, 6, 0].includes(new Date().getDay());
         return f.p.some(p => ALLOWED.includes(p)) &&
           !(f.p.includes("Cinéma") && !isWE) &&
@@ -287,7 +287,7 @@
                 <span class="gauge-lbl">🎯 ${proba(f)} % de chances de te plaire</span>
                 <div class="gauge"><div class="gauge-fill" style="width:${proba(f)}%"></div></div>
               </div>`}
-              <div>${f.p.map(p => `<span class="chip">${esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
+              <div>${f.p.map(p => `<span class="chip">${p.includes("VOD") ? "💳 VOD" : p === "Cinéma" ? "🎟️ Cinéma" : p === "Sooner" ? "🎬 Sooner" : p === "Arte" ? "🎨 Arte" : p === "YouTube" ? "▶️ YouTube" : "📺 " + esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
             </div>
             <div class="poster" data-title="${esc(f.t)}" id="poster-${i}" style="height:auto;align-self:stretch">🎞️</div>
           </div>
@@ -680,7 +680,7 @@
         if (state.etape === 3 && !state.pick) {
           const b = budget();
           // Garantie de visionnage : chaque suggestion doit être disponible sur au moins une plateforme d'accès
-          const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Cinéma"];
+          const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Arte", "YouTube", "Cinéma"];
           // Films en salle : uniquement du vendredi au dimanche (préférence week-end du profil)
           const isWE = [5, 6, 0].includes(new Date().getDay());
           let results = FILMS.filter(f =>
