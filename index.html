@@ -297,9 +297,18 @@
 
       // --- actions ---
       window.setDebut = (m) => { state.debutMin = m; state.noTime = false; save(); render(); };
-      window.setDebutInput = (v) => { if (!v || !v.includes(":")) return; const [h, mm] = v.split(":").map(Number); if (isNaN(h) || isNaN(mm)) return; state.debutMin = h*60+mm; state.noTime = false; save(); render(); };
+      // saisies libres d'horaires : ignorer les valeurs partielles, sinon le re-rendu détruit le champ pendant l'édition des minutes
+      let __timeTimer = null;
+      const H_RE = /^\d{2}:\d{2}$/;
+      const applyDebut = (v) => { if (!H_RE.test(v)) return; const [h, mm] = v.split(":").map(Number); state.debutMin = h*60+mm; state.noTime = false; save(); render(); };
+      const applyCouche = (v) => { if (!H_RE.test(v)) return; const [h, mm] = v.split(":").map(Number); state.coucheMin = h*60+mm; state.noTime = false; save(); render(); };
+      window.setDebutInput = (v) => { if (!H_RE.test(v)) return; clearTimeout(__timeTimer); __timeTimer = setTimeout(() => applyDebut(v), 400); };
+      window.setDebutInputNow = applyDebut;
+      window.setCoucheInput = (v) => { if (!H_RE.test(v)) return; clearTimeout(__timeTimer); __timeTimer = setTimeout(() => applyCouche(v), 400); };
+      window.setCoucheInputNow = applyCouche;
       window.setCouche = (m) => { state.coucheMin = m; state.noTime = false; save(); render(); };
-      window.setCoucheInput = (v) => { if (!v || !v.includes(":")) return; const [h, mm] = v.split(":").map(Number); if (isNaN(h) || isNaN(mm)) return; state.coucheMin = h*60+mm; state.noTime = false; save(); render(); };
+      window.clearDebut = () => { state.debutMin = null; save(); render(); };
+      window.clearCouche = () => { state.coucheMin = null; save(); render(); };
       window.setNoTime = () => { state.noTime = true; state.debutMin = null; state.coucheMin = null; window.__jumpTop = true; save(); state.etape = 1; render(); };
       window.goEtape = (n) => { state.etape = n; window.__jumpTop = true; save(); render(); };
       window.setGenre = (g) => { state.genre = g; state.etape = 2; window.__jumpTop = true; save(); render(); };
@@ -629,13 +638,13 @@
             <div class="grid">
               <div class="slot"><p>🛋️ Début de la séance vers…</p>
                 ${[1200,1230,1260,1290,1320].map(m => `<button class="btn ${state.debutMin === m ? "vu-on" : ""}" onclick="setDebut(${m})">${fmtH(m)}</button>`).join("")}
-                ${state.debutMin !== null && ![1200,1230,1260,1290,1320].includes(state.debutMin) ? `<button class="btn vu-on" title="heure personnalisée enregistrée" onclick="setDebutInput('')">✅ ${fmtH(state.debutMin)}</button>` : ""}
-                <input type="time" value="" oninput="setDebutInput(this.value)" onchange="setDebutInput(this.value)" />
+                ${state.debutMin !== null && ![1200,1230,1260,1290,1320].includes(state.debutMin) ? `<button class="btn vu-on" title="heure personnalisée enregistrée" onclick="clearDebut()">✅ ${fmtH(state.debutMin)}</button>` : ""}
+                <input type="time" value="" oninput="setDebutInput(this.value)" onchange="setDebutInputNow(this.value)" />
               </div>
               <div class="slot"><p>🏁 Fin de la séance vers…</p>
                 ${[1350,1380,1410,0,60].map((m,i) => `<button class="btn ${state.coucheMin === m ? "vu-on" : ""}" onclick="setCouche(${m})">${i < 3 ? fmtH(m) : fmtH(m) + " (+1j)"}</button>`).join("")}
-                ${state.coucheMin !== null && ![1350,1380,1410,0,60].includes(state.coucheMin) ? `<button class="btn vu-on" title="heure personnalisée enregistrée" onclick="setCoucheInput('')">✅ ${fmtH(state.coucheMin)}${state.coucheMin < 720 ? " (+1j)" : ""}</button>` : ""}
-                <input type="time" value="" oninput="setCoucheInput(this.value)" onchange="setCoucheInput(this.value)" />
+                ${state.coucheMin !== null && ![1350,1380,1410,0,60].includes(state.coucheMin) ? `<button class="btn vu-on" title="heure personnalisée enregistrée" onclick="clearCouche()">✅ ${fmtH(state.coucheMin)}${state.coucheMin < 720 ? " (+1j)" : ""}</button>` : ""}
+                <input type="time" value="" oninput="setCoucheInput(this.value)" onchange="setCoucheInputNow(this.value)" />
               </div>
             </div>
             ${b !== null ? `<p class="budgetline">🎯 Créneau : ${fmtDur((state.coucheMin - state.debutMin + 1440) % 1440)} de séance → ${fmtDur(b)} de film max (marge 10 min).</p>` : ""}
