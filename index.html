@@ -77,7 +77,6 @@
         { t:"La Route", r:"John Hillcoat", y:2009, g:"postapo", dur:111, p:["VOD"], tags:["post-apo","drame","survie"], big:true, pitch:"Père et fils errant dans un monde mort, adaptation du roman de McCarthy.", why:"Fin du monde contemplative et déchirante, très ambiance." },
         { t:"Snowpiercer", r:"Bong Joon-ho", y:2013, g:"postapo", dur:126, p:["Netflix","VOD"], tags:["post-apo","huis clos","classe"], big:false, pitch:"Train géant, derniers survivants de l'humanité, révolte de queue de train.", why:"Dystopie + huis clos + polarité sociale, tout ce que tu aimes." },
         { t:"Children of Men", r:"Alfonso Cuarón", y:2006, g:"postapo", dur:109, p:["VOD"], tags:["post-apo","référence"], big:true, pitch:"Un de tes repères — candidat re-voir.", why:"Déjà adoré : à revoir sur vidéoprojecteur." },
-        { t:"Z for Zachariah", r:"Craig Zobel", y:2015, g:"postapo", dur:98, p:["VOD"], tags:["post-apo","triangle"], big:false, pitch:"Trois survivants post-apo, tension montante.", why:"⚠️ Indisponible sur tes plateformes FR lors du dernier essai — à re-vérifier." },
         { t:"Le Dernier Combat", r:"Luc Besson", y:1983, g:"postapo", dur:91, p:["VOD"], tags:["post-apo","VF","francais"], big:false, pitch:"Post-apo bessonien quasi muet, curiosité française.", why:"Post-apo à la française, ambiance strange." },
         { t:"Timecrimes (Los Cronocrímenes)", r:"Nacho Vigalondo", y:2007, g:"huisclos", dur:92, p:["VOD"], tags:["boucle","twist"], big:false, pitch:"Boucle temporelle low-budget espagnole.", why:"Vu : scénario bon, acting moyen — piste épuisée si Coherence t'a plu plus." },
         { t:"The One I Love", r:"Charlie McDowell", y:2014, g:"huisclos", dur:91, p:["VOD"], tags:["twist","couple"], big:false, pitch:"Couple en retraite, maison d'hôtes étrange. À voir sans rien savoir.", why:"Sur ta liste d'attente — introuvable en streaming FR (oct. 2026), à re-vérifier (VOD possible)." },
@@ -180,7 +179,8 @@
           cerveau: (f.tags.includes("twist")||f.tags.includes("boucle")||f.tags.includes("IA")) ? 3 : 0,
           coeur: (f.tags.includes("romance")||f.tags.includes("memoire")||f.tags.includes("famille")||f.tags.includes("pere-fille")) ? 3 : 0,
         };
-        return (map[state.envie] || 0) + (f.p.length > 1 ? 1 : 0);
+        return (map[state.envie] || 0) + (f.p.length > 1 ? 1 : 0) +
+          (f.p.some(p => ["Netflix", "Prime Video", "Sooner", "Cinéma", "Apple TV+"].includes(p)) ? 2 : 0); // accès facile privilégié
       };
 
       const stars = (film) => {
@@ -393,8 +393,14 @@
 
         if (state.etape === 3 && !state.pick) {
           const b = budget();
+          // Garantie de visionnage : chaque suggestion doit être disponible sur au moins une plateforme d'accès
+          const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Cinéma"];
+          // Films en salle : uniquement du vendredi au dimanche (préférence week-end du profil)
+          const isWE = [5, 6, 0].includes(new Date().getDay());
           let results = FILMS.filter(f =>
             f.g === state.genre &&
+            f.p.some(p => ALLOWED.includes(p)) &&
+            !(f.p.includes("Cinéma") && !isWE) &&
             (!state.filters.big || f.big) &&
             (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p)))
           );
@@ -408,7 +414,10 @@
             <div class="filters">
               <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
               ${PLATEFORMES.map(p => `<label><input type="checkbox" ${state.filters.plateformes.includes(p) ? "checked" : ""} onchange="togglePlat('${p}')"> ${p}</label>`).join("")}
-            </div><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">` +
+            </div>
+            <p class="range" style="margin-top:6px">${isWE
+              ? "🍿 C'est le week-end : les sorties en salle (Pathé Palace Opéra · Grand Rex · Max Linder) sont incluses."
+              : "🎟️ Les films en salle apparaissent ici du vendredi au dimanche — en semaine, uniquement streamings et VOD."}</p><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">` +
             (results.length === 0 ? `<p class="range">Aucun film avec ces filtres — élargis ta sélection 😉</p>` :
               results.map(cardHTML).join("")) +
             `</div>`;
