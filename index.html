@@ -857,10 +857,50 @@ type: "text/html"
         document.getElementById("add-picked").innerHTML = `<div class="picked">✅ Titre vérifié : <b>${esc(r.t)}</b>${r.y ? " (" + r.y + ")" : ""} — <small>${esc(r.src)}</small></div>`;
         document.getElementById("add-ok").disabled = false;
       };
-      window.validateAdd = () => {
+      // enrichissement d'un film ajouté manuellement via TMDB : réalisateur, année, durée, genres, synopsis, ambiance
+      const mapAmbianceFromTmdb = (gn) => {
+        const has = (s) => gn.includes(s);
+        if (has("Science-Fiction") || has("Science Fiction")) return "sf";
+        if (has("Horreur")) return "horreur";
+        if (has("Thriller")) return "thriller";
+        if (has("Comédie")) return "comedie";
+        if (has("Documentaire")) return "fauxdoc";
+        if (has("Guerre") || has("Histoire")) return "francais";
+        return null; // ambiance non tranchée — visible dans le stock, mais pas dans les suggestions
+      };
+      const enrichAndAdopt = async (t, y) => {
+        const film = { t, r: "—", y: y || null, g: null, dur: 0, p: [], tags: [], big: false, pitch: "Ajouté manuellement via « J'ai vu un film ».", why: "" };
+        try {
+          const key = getTmdbKey();
+          if (key) {
+            const r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${key}&query=${encodeURIComponent(t)}${y ? "&year=" + y : ""}&language=fr-FR`);
+            if (r.ok) {
+              const j = await r.json();
+              const hit = (j.results || [])[0];
+              if (hit) {
+                const d = await fetch(`https://api.themoviedb.org/3/movie/${hit.id}?api_key=${key}&language=fr-FR&append_to_response=credits`);
+                if (d.ok) {
+                  const m = await d.json();
+                  const real = ((m.credits || {}).crew || []).find((c) => c.job === "Director");
+                  film.r = (real && real.name) || "—";
+                  film.y = y || (parseInt((m.release_date || "").slice(0, 4), 10) || null);
+                  film.dur = m.runtime || 0;
+                  const gn = (m.genres || []).map((x) => x.name);
+                  film.g = mapAmbianceFromTmdb(gn);
+                  film.tags = gn.map((x) => x.toLowerCase()).slice(0, 4).concat(["TMDB"]);
+                  if (m.overview) film.pitch = m.overview.slice(0, 300);
+                }
+              }
+            }
+          }
+        } catch (e) { /* hors ligne : fiche minimale */ }
+        adoptRaw(film);
+        render();
+      };
+      window.validateAdd = async () => {
         if (!__addPicked) return;
         const t = __addPicked.t;
-        if (!findFilm(t)) adoptRaw({ t, r: "—", y: __addPicked.y || null, g: null, dur: 0, p: [], tags: [], big: false, pitch: "Ajouté manuellement via « J'ai vu un film ».", why: "" });
+        const wasUnknown = !findFilm(t);
         const c = ((document.getElementById("add-comment") || {}).value || "").trim();
         if (c) state.comments[t] = { text: c, at: Date.now() };
         if (!state.seen.includes(t)) window.toggleVu(t);
@@ -868,6 +908,7 @@ type: "text/html"
         if (c) { save(); schedulePush(); maybeRefreshSeen(); }
         window.closeAddModal();
         render();
+        if (wasUnknown) enrichAndAdopt(t, __addPicked.y); // alimente le stock avec les infos du web (TMDB)
       };
 
       const render = () => {
