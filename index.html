@@ -414,6 +414,7 @@
         state.seenDel = mergeMap(remote.seenDel, state.seenDel);
         state.indispo = mergeMap(remote.indispo, state.indispo);
         state.pickHistory = mergeMap(remote.pickHistory, state.pickHistory);
+        if (purgePicks()) save();
         const mergedC = { ...(state.comments || {}) };
         Object.entries(remote.comments || {}).forEach(([t, c]) => {
           const local = mergedC[t];
@@ -475,6 +476,14 @@
       // --- Fenêtre « J'ai vu un film » : ajout avec vérification du titre ---
       let __addResults = [], __addPicked = null, __addNote = null, __addTimer = null, __histTitles = [];
       const normTitle = (t) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").replace(/^iletaitunefois/, "");
+      // purge « Babylon » (ciné-concert passé) : retiré de la liste « À voir » au chargement et après chaque fusion
+      const purgePicks = () => {
+        let changed = false;
+        Object.keys(state.pickHistory || {}).forEach((t) => {
+          if (normTitle(t).startsWith("babylon")) { delete state.pickHistory[t]; changed = true; }
+        });
+        return changed;
+      };
       const pendingPicks = () => {
         const merged = new Map();
         Object.keys(state.pickHistory || {})
@@ -892,6 +901,7 @@
         render();
       };
 
+      if (purgePicks()) save();
       render();
       initSync();
     </script>
