@@ -722,12 +722,12 @@
               <div class="slot"><p>🛋️ Début de la séance vers…</p>
                 ${[1200,1230,1260,1290,1320].map(m => `<button class="btn ${state.debutMin === m ? "vu-on" : ""}" onclick="setDebut(${m})">${fmtH(m)}</button>`).join("")}
                 ${state.debutMin !== null && ![1200,1230,1260,1290,1320].includes(state.debutMin) ? `<button class="btn vu-on" title="heure personnalisée enregistrée" onclick="clearDebut()">✅ ${fmtH(state.debutMin)}</button>` : ""}
-                <input type="time" value="" oninput="setDebutInput(this.value)" onchange="setDebutInputNow(this.value)" />
+                <input type="time" value="${String(new Date().getHours()).padStart(2,"0")}:${String(new Date().getMinutes()).padStart(2,"0")}" oninput="setDebutInput(this.value)" onchange="setDebutInputNow(this.value)" />
               </div>
               <div class="slot"><p>🏁 Fin de la séance vers…</p>
                 ${[1350,1380,1410,0,60].map((m,i) => `<button class="btn ${state.coucheMin === m ? "vu-on" : ""}" onclick="setCouche(${m})">${i < 3 ? fmtH(m) : fmtH(m) + " (+1j)"}</button>`).join("")}
                 ${state.coucheMin !== null && ![1350,1380,1410,0,60].includes(state.coucheMin) ? `<button class="btn vu-on" title="heure personnalisée enregistrée" onclick="clearCouche()">✅ ${fmtH(state.coucheMin)}${state.coucheMin < 720 ? " (+1j)" : ""}</button>` : ""}
-                <input type="time" value="" oninput="setCoucheInput(this.value)" onchange="setCoucheInputNow(this.value)" />
+                <input type="time" value="${String(new Date().getHours()).padStart(2,"0")}:${String(new Date().getMinutes()).padStart(2,"0")}" oninput="setCoucheInput(this.value)" onchange="setCoucheInputNow(this.value)" />
               </div>
             </div>
             ${b !== null ? `<p class="budgetline">🎯 Créneau : ${fmtDur((state.coucheMin - state.debutMin + 1440) % 1440)} de séance → ${fmtDur(b)} de film max (marge 10 min).</p>` : ""}
