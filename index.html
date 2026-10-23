@@ -439,6 +439,42 @@
         document.getElementById("add-q").focus();
       };
       window.closeAddModal = () => { document.getElementById("modal-root").innerHTML = ""; };
+      window.openSyncModal = () => {
+        const nbNotes = Object.keys(state.ratings).length;
+        const nbComs = Object.keys(state.comments || {}).length;
+        const nbInd = Object.keys(state.indispo || {}).filter((t) => isIndispo(t)).length;
+        document.getElementById("modal-root").innerHTML = `
+          <div class="mroot" onclick="if(event.target===this) closeAddModal()">
+            <div class="mbox">
+              <h2 style="margin:0 0 4px">⚙️ Synchronisation & réglages</h2>
+              <p class="sessionline" style="margin:0 0 12px">${syncStatus}</p>
+              <p class="lbl">Informations à synchroniser</p>
+              ${state.seen.length > 0 ? `<p class="sessionline">Marqués « vus » : ${state.seen.map(esc).join(", ")}</p>` : ""}
+              ${nbNotes > 0 ? `<p class="sessionline">Notes : ${Object.entries(state.ratings).map(([t, e]) => `${esc(t)} ${e.v === 0 ? "👎 (vraiment pas aimé)" : "★".repeat(e.v) + "☆".repeat(3-e.v) + (e.v === 3 ? " ⭐(référence)" : "")}`).join(" · ")}</p>` : ""}
+              ${nbComs > 0 ? `<p class="sessionline">Commentaires : ${nbComs}</p>` : ""}
+              ${nbInd > 0 ? `<p class="sessionline">Masqués pour indisponibilité : ${nbInd}</p>` : ""}
+              ${state.seen.length === 0 && nbNotes === 0 && nbComs === 0 ? `<p class="range">Session vide — rien à synchroniser pour l'instant.</p>` : ""}
+              <p class="lbl" style="margin-top:14px">☁️ Token GitHub</p>
+              ${getToken()
+                ? `<p class="sessionline">✅ Token actif dans ce navigateur.</p>`
+                : `<div style="display:flex;gap:6px;flex-wrap:wrap">
+                     <input type="password" id="gh-token" placeholder="github_pat_… (droits Contents: read & write, dépôt findeur-films-data)" style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" />
+                     <button class="btn primary" onclick="saveToken(document.getElementById('gh-token').value)">Activer la sync</button>
+                   </div>`}
+              <p class="lbl" style="margin-top:14px">🖼️ Clé API TMDB (affiches)</p>
+              <p class="sessionline">${getTmdbKey() === TMDB_KEY ? "✅ Clé par défaut active" : "Clé personnalisée enregistrée"} — laisse vide pour la clé intégrée.</p>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <input type="password" id="tmdb-key" placeholder="clé API TMDB personnalisée (optionnel)…" style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" />
+                <button class="btn" onclick="saveTmdbKey(document.getElementById('tmdb-key').value)">Enregistrer</button>
+              </div>
+              <p class="warn" style="margin-top:10px">Token et clé restent stockés uniquement dans ce navigateur. Une fois la sync active, tes notes partagent le même profil sur tous tes appareils et une tâche planifiée Vibe les intègre à ton profil cinéphile matin et soir.</p>
+              <div style="display:flex;justify-content:space-between;gap:8px;margin-top:16px">
+                <button class="btn" onclick="reset(); closeAddModal()">🗑️ Vider la session</button>
+                <button class="btn primary" onclick="closeAddModal()">Fermer</button>
+              </div>
+            </div>
+          </div>`;
+      };
       window.onAddSearch = (q) => {
         clearTimeout(__addTimer);
         if (q.trim().length < 2) { document.getElementById("add-results").innerHTML = ""; return; }
@@ -578,32 +614,13 @@
             <button class="btn" onclick="reset()">🔄 Nouvelle session</button>
           </p>`;
         }
-
-        if (state.seen.length > 0 || Object.keys(state.ratings).length > 0) {
           h += `<footer>`;
-          if (state.seen.length > 0) h += `<p class="sessionline">Marqués « vus » : ${state.seen.map(esc).join(", ")}</p>`;
-          if (Object.keys(state.ratings).length > 0) h += `<p class="sessionline">Notes : ${Object.entries(state.ratings).map(([t, e]) => `${esc(t)} ${e.v === 0 ? "👎 (vraiment pas aimé)" : "★".repeat(e.v) + "☆".repeat(3-e.v) + (e.v === 3 ? " ⭐(référence)" : "")}`).join(" · ")}</p>`;
+          h += `<div class="dispo" style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <p class="sessionline" style="margin:0">${syncStatus}</p>
+            ${getToken() ? `<button class="btn" onclick="syncNow()">🔄 Synchroniser maintenant</button>` : `<button class="btn primary" onclick="openSyncModal()">🔌 Activer la sync</button>`}
+            <button class="btn" onclick="openSyncModal()" title="Réglages, données à synchroniser et clé TMDB">⋯</button>
+          </div></footer>`;
 
-          h += `<div class="dispo" style="margin-top:12px">
-            <p class="lbl">☁️ Synchronisation GitHub — profil cinéphile multi-appareils</p>
-            <p class="sessionline" style="margin-top:6px">${syncStatus}</p>
-            ${getToken() ? `<button class="btn" onclick="syncNow()">🔄 Synchroniser maintenant</button>` : `
-              <p class="sessionline" style="margin-top:6px">Colle ici ton personal access token GitHub (droits Contents: read & write, limité au dépôt <b>findeur-films-data</b>) :</p>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-                <input type="password" id="gh-token" placeholder="github_pat_..." style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" />
-                <button class="btn primary" onclick="saveToken(document.getElementById('gh-token').value)">Activer la sync</button>
-              </div>`}
-            <p class="warn" style="margin-top:6px">Le token reste stocké uniquement dans ce navigateur. Une fois la sync active, tes notes partagent le même profil sur tous tes appareils et une tâche planifiée Vibe les intègre à ton profil cinéphile matin et soir.</p>
-            <p class="sessionline" style="margin-top:8px">🖼️ Affiches TMDB : <small>${getTmdbKey() === TMDB_KEY ? "✅ clé par défaut active" : "clé personnalisée enregistrée"} — laisse vide pour utiliser la clé intégrée</small></p>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-              <input type="password" id="tmdb-key" placeholder="clé API TMDB personnalisée (optionnel)…" style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" />
-              <button class="btn" onclick="saveTmdbKey(document.getElementById('tmdb-key').value)">Enregistrer</button>
-            </div>
-          </div>`;
-          h += `<button class="backlink" onclick="reset()">🗑️ vider la session</button></footer>`;
-        }
-
-        app.innerHTML = h;
         // conserver la position de défilement quand l'action ne change pas d'écran (toggles, notes…)
         const keep = window.__keepScroll === true;
         const sy = window.scrollY;
