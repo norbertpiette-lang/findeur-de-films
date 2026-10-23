@@ -211,7 +211,7 @@
       };
 
       // commentaire personnel : proposé à côté de la note partout où les étoiles apparaissent
-      window.removePick = (t) => { delete state.pickHistory[t]; save(); schedulePush(); if (window.__picksOpen) openPicksModal(); };
+      window.removePick = (t) => { delete state.pickHistory[t]; save(); schedulePush(); render(); if (window.__picksOpen) openPicksModal(window.__picksMode || "selection"); };
       window.addComment = (t) => {
         const existing = (state.comments[t] || {}).text || "";
         const v = window.prompt("Ton commentaire sur ce film (ce qui t'a plu ou déplu : ambiance, rythme, réalisation… — il affinera ton profil cinéphile) :", existing);
@@ -585,6 +585,7 @@
       window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
       window.openPicksModal = (mode) => {
         window.__picksOpen = true;
+        window.__picksMode = mode || "selection";
         // mode « all » : liste brute de tous les films « À voir » — aucun filtre, aucune fusion, doublons conservés
         if (mode === "all") {
           const raw = Object.keys(state.pickHistory || {})
