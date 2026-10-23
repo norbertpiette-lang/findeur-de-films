@@ -777,3 +777,33 @@
         const key = getTmdbKey();
         if (!key) return null;
         try {
+          const r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${key}&query=${encodeURIComponent(t)}&language=fr-FR`);
+          if (!r.ok) return null;
+          const j = await r.json();
+          const hits = (j.results || []).filter(m => m.poster_path);
+          const hit = y ? (hits.find(m => (m.release_date || "").startsWith(String(y))) || hits[0]) : hits[0];
+          return hit ? "https://image.tmdb.org/t/p/w185" + hit.poster_path : null;
+        } catch (e) { return null; }
+      };
+      const loadPosters = async () => {
+        document.querySelectorAll(".poster").forEach(async (el) => {
+          const t = el.dataset.title;
+          if (!(t in posterCache)) {
+            const y = (FILMS.find(f => f.t === t) || {}).y;
+            posterCache[t] = (await tmdbPoster(t, y)) || (await wikiPoster(t));
+            savePosterCache();
+          }
+          if (posterCache[t]) el.innerHTML = '<img src="' + posterCache[t] + '" alt="' + esc(t) + '" loading="lazy" />';
+        });
+      };
+      window.saveTmdbKey = (val) => {
+        try { localStorage.setItem("findeur-tmdb-key", val.trim()); } catch (e) {}
+        posterCache = {}; try { localStorage.removeItem(POSTER_KEY); } catch (e) {}
+        render();
+      };
+
+      render();
+      initSync();
+    </script>
+  </body>
+</html>
