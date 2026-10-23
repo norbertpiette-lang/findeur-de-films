@@ -236,7 +236,7 @@
               <button class="btn ${vu ? "vu-on" : ""}" onclick="toggleVu('${esc(f.t)}')">${vu ? "✅ Vu (retirer)" : "◻️ Pas vu (marquer vu)"}</button>
               ${vu ? "" : `<button class="btn primary" onclick="setPick('${esc(f.t)}')">🎬 À voir — c'est mon choix</button>`}
             </div>
-            ${vu ? stars(f) : '<span class="starlabel">◻️ Marque « vu » pour noter ce film</span>'}
+            ${vu ? stars(f) : ""}
           </div>
         </div>`;
       };
