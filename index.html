@@ -581,9 +581,10 @@
       window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
       window.openPicksModal = () => {
         window.__picksOpen = true;
-        const sel = picksInSelection();
-        const autres = pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean).filter((f) => f.g !== state.genre);
-        const genreLabel = GENRES.find((g) => g.id === state.genre).label;
+        const hasGenre = !!state.genre;
+        const sel = hasGenre ? picksInSelection() : pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean);
+        const autres = hasGenre ? pendingPicks().map((t) => FILMS.find((f) => f.t === t)).filter(Boolean).filter((f) => f.g !== state.genre) : [];
+        const genreLabel = hasGenre ? GENRES.find((g) => g.id === state.genre).label : "toutes ambiances";
         const cards = (arr, base) => arr.map((f, i) => cardHTML(f, base + i, "picks")).join("");
         document.getElementById("modal-root").innerHTML = `
           <div class="mroot" onclick="if(event.target===this) closePicksModal()">
@@ -593,7 +594,7 @@
               <div style="display:flex;flex-direction:column;gap:12px">
                 ${sel.length
                   ? cards(sel, 950)
-                  : `<p class="range">Aucun film « À voir » en attente dans cette ambiance — fais une recommandation et choisis un film !</p>`}
+                  : `<p class="range">Aucun film « À voir » en attente${hasGenre ? " dans cette ambiance" : ""} — fais une recommandation et choisis un film !</p>`}
                 ${autres.length ? `<p class="lbl" style="margin-top:8px">🎞️ Autres ambiances (${autres.length})</p>` + cards(autres, 1050) : ""}
               </div>
               <div style="display:flex;justify-content:flex-end;margin-top:14px">
@@ -703,7 +704,8 @@
             </div>
             ${b !== null ? `<p class="budgetline">🎯 Créneau : ${fmtDur((state.coucheMin - state.debutMin + 1440) % 1440)} de séance → ${fmtDur(b)} de film max (marge 10 min).</p>` : ""}
             <p style="margin-top:16px"><button class="btn primary" ${!state.noTime && (state.debutMin === null || state.coucheMin === null) ? "disabled" : ""} onclick="goEtape(1)">Continuer →</button>
-            <button class="btn" onclick="setNoTime()" title="Suggestions sans limite de durée">🕐 Pas de contrainte horaire</button></p>`;
+            <button class="btn" onclick="setNoTime()" title="Suggestions sans limite de durée">🕐 Pas de contrainte horaire</button>
+            <button class="btn" onclick="openPicksModal()" title="Tous mes films choisis « À voir », toutes ambiances">🎬 À voir</button></p>`;
         }
 
         if (state.etape === 1) {
