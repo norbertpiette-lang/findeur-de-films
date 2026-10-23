@@ -165,8 +165,15 @@
       const loadPool = async () => {
         if (poolCache !== null) return;
         try {
-          const r = await fetch(`https://raw.githubusercontent.com/${SYNC.owner}/${SYNC.dataRepo}/main/pool.json`, { cache: "no-store" });
-          poolCache = r.ok ? (await r.json()) : [];
+          const tok = getToken();
+          if (!tok) { poolCache = []; return; } // dépôt privé : sans token, pas de pool
+          const r = await fetch(`https://api.github.com/repos/${SYNC.owner}/${SYNC.dataRepo}/contents/pool.json?ref=${SYNC.branch}`, { headers: { Authorization: "Bearer " + tok, Accept: "application/vnd.github+json" } });
+          if (!r.ok) { poolCache = []; return; }
+          const j = await r.json();
+          const bin = atob((j.content || "").replace(/\s/g, ""));
+          const txt = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+          const arr = JSON.parse(txt);
+          poolCache = Array.isArray(arr) ? arr : [];
         } catch (e) { poolCache = []; }
       };
       const POOL_SEEN_KEY = "findeur-pool-seen";
