@@ -287,10 +287,10 @@
       window.setDebutInput = (v) => { if (!v || !v.includes(":")) return; const [h, mm] = v.split(":").map(Number); if (isNaN(h) || isNaN(mm)) return; state.debutMin = h*60+mm; save(); render(); };
       window.setCouche = (m) => { state.coucheMin = m; save(); render(); };
       window.setCoucheInput = (v) => { if (!v || !v.includes(":")) return; const [h, mm] = v.split(":").map(Number); if (isNaN(h) || isNaN(mm)) return; state.coucheMin = h*60+mm; save(); render(); };
-      window.goEtape = (n) => { state.etape = n; save(); render(); };
-      window.setGenre = (g) => { state.genre = g; state.etape = 2; save(); render(); };
-      window.setEnvie = (e) => { state.envie = e; state.etape = 3; save(); render(); };
-      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t); if (state.pick) { state.pickHistory[t] = state.pickHistory[t] || Date.now(); } save(); render(); };
+      window.goEtape = (n) => { state.etape = n; window.__jumpTop = true; save(); render(); };
+      window.setGenre = (g) => { state.genre = g; state.etape = 2; window.__jumpTop = true; save(); render(); };
+      window.setEnvie = (e) => { state.envie = e; state.etape = 3; window.__jumpTop = true; save(); render(); };
+      window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t); if (state.pick) { state.pickHistory[t] = state.pickHistory[t] || Date.now(); } window.__jumpTop = true; save(); render(); };
       window.closePick = () => { state.pick = null; save(); render(); };
       window.toggleVu = (t) => {
         const now = Date.now();
@@ -318,7 +318,7 @@
         else state.indispo[t] = Date.now();
         save(); schedulePush(); window.__keepScroll = true; render();
       };
-      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
+      window.reset = () => { window.__jumpTop = true; state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
         try { localStorage.removeItem(LS); } catch (e) {} render(); };
 
       // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
@@ -690,12 +690,12 @@
             <button class="btn" onclick="openSyncModal()" title="Réglages, données à synchroniser et clé TMDB">⋯</button>
           </div></footer>`;
 
-        // conserver la position de défilement quand l'action ne change pas d'écran (toggles, notes…)
-        const keep = window.__keepScroll === true;
+        // anti-saut : conserver le défilement pour toute action ; seul un vrai changement d'écran remonte en haut
+        const jump = window.__jumpTop === true;
         const sy = window.scrollY;
         app.innerHTML = h;
-        if (keep) window.scrollTo(0, sy); else window.scrollTo(0, 0);
-        window.__keepScroll = false;
+        window.scrollTo(0, jump ? 0 : sy);
+        window.__jumpTop = false;
         loadPosters();
       };
 
