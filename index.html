@@ -144,8 +144,18 @@
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
 
-      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], ratings:{}, pick:null };
+      let state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
+      // migration ancien format : seen [] → seenMap avec horodatage 0
+      if (!state.seenMap && Array.isArray(state.seen)) {
+        state.seenMap = Object.fromEntries(state.seen.map((t) => [t, 0]));
+        state.seenDel = state.seenDel || {};
+      }
+      // vu = ajouté plus récemment que retiré
+      const recomputeSeen = () => {
+        state.seen = Object.keys(state.seenMap || {}).filter((t) => (state.seenMap[t] || 0) > (state.seenDel?.[t] ?? -1));
+      };
+      recomputeSeen();
 
       const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} };
 
@@ -240,7 +250,18 @@
       window.setEnvie = (e) => { state.envie = e; state.etape = 3; save(); render(); };
       window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t); save(); render(); };
       window.closePick = () => { state.pick = null; save(); render(); };
-      window.toggleVu = (t) => { state.seen = state.seen.includes(t) ? state.seen.filter(x => x !== t) : [...state.seen, t]; save(); schedulePush(); render(); };
+      window.toggleVu = (t) => {
+        const now = Date.now();
+        const vu = state.seen.includes(t);
+        if (vu) { // retrait — horodaté pour que la sync ne le ressuscite pas
+          state.seenDel[t] = now;
+          delete state.seenMap[t];
+        } else { // ajout
+          state.seenMap[t] = now;
+          delete state.seenDel[t];
+        }
+        recomputeSeen(); save(); schedulePush(); render();
+      };
       window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; save(); schedulePush(); render(); };
       window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); render(); };
       window.toggleBig = () => { state.filters.big = !state.filters.big; save(); render(); };
@@ -250,35 +271,44 @@
           : [...state.filters.plateformes, p];
         save(); render();
       };
-      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], ratings:{}, pick:null };
+      window.reset = () => { state = { etape:0, debutMin:null, coucheMin:null, genre:null, envie:null, filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, ratings:{}, pick:null };
         try { localStorage.removeItem(LS); } catch (e) {} render(); };
 
       // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
       const getToken = () => { try { return localStorage.getItem(SYNC.tokenKey) || ""; } catch (e) { return ""; } };
       const notesURL = () => `https://api.github.com/repos/${SYNC.owner}/${SYNC.dataRepo}/contents/${SYNC.path}?ref=${SYNC.branch}`;
       const mergeNotes = (remote) => {
-        // fusion : la note la plus récente gagne par film ; seen = union
+        // fusion par horodatage : la modification la plus récente gagne (notes, ajouts ET retraits de « vu »)
         const merged = { ...state.ratings };
         Object.entries(remote.ratings || {}).forEach(([t, e]) => {
           const local = merged[t];
           if (!local || (e.at || 0) > (local.at || 0)) merged[t] = e;
         });
         state.ratings = merged;
-        state.seen = [...new Set([...(remote.seen || []), ...state.seen])];
+        const mergeMap = (remoteMap, localMap) => {
+          const out = { ...(remoteMap || {}) };
+          Object.entries(localMap || {}).forEach(([t, at]) => {
+            if (!(t in out) || (out[t] || 0) < (at || 0)) out[t] = at;
+          });
+          return out;
+        };
+        state.seenMap = mergeMap(remote.seenMap || Object.fromEntries((remote.seen || []).map((t) => [t, 0])), state.seenMap);
+        state.seenDel = mergeMap(remote.seenDel, state.seenDel);
+        recomputeSeen();
         save();
       };
       const ghGetNotes = async () => {
         const res = await fetch(notesURL(), { headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json" } });
-        if (res.status === 404) return { ratings: {}, seen: [], sha: undefined };
+        if (res.status === 404) return { ratings: {}, seen: [], seenMap: {}, seenDel: {}, sha: undefined };
         if (!res.ok) throw new Error("HTTP " + res.status);
         const j = await res.json();
-        let notes = { ratings: {}, seen: [] };
+        let notes = { ratings: {}, seen: [], seenMap: {}, seenDel: {} };
         try { notes = JSON.parse(atob(j.content.replace(/\n/g, ""))) || notes; } catch (e) {}
         notes.sha = j.sha;
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, updatedAt: new Date().toISOString() }, null, 2));
+        const content = btoa(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
