@@ -166,6 +166,16 @@
       let sessionSeen = new Set(state.seen);
       const isSessionSeen = (t) => sessionSeen.has(t);
       const IND_DELAY = 90 * 864e5; // rétention indisponibilité : 3 mois
+      // critères communs de sélection (utilisés par les suggestions ET la liste des films déjà vus)
+      const SELECTION_OK = (f) => {
+        const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Cinéma"];
+        const isWE = [5, 6, 0].includes(new Date().getDay());
+        return f.p.some(p => ALLOWED.includes(p)) &&
+          !(f.p.includes("Cinéma") && !isWE) &&
+          (!state.filters.big || f.big) &&
+          (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p)));
+      };
+      const seenInSelection = () => FILMS.filter((f) => f.g === state.genre && state.seen.includes(f.t) && SELECTION_OK(f));
       const isIndispo = (t) => (state.indispo?.[t] || 0) > 0 && Date.now() - state.indispo[t] < IND_DELAY;
       // migration ancien format : seen [] → seenMap avec horodatage 0
       if (!state.seenMap && Array.isArray(state.seen)) {
@@ -485,7 +495,7 @@
       window.closeSeenModal = () => { window.__seenOpen = false; document.getElementById("modal-root").innerHTML = ""; };
       window.openSeenModal = () => {
         window.__seenOpen = true;
-        const vus = FILMS.filter((f) => f.g === state.genre && state.seen.includes(f.t));
+        const vus = seenInSelection();
         const genreLabel = GENRES.find((g) => g.id === state.genre).label;
         document.getElementById("modal-root").innerHTML = `
           <div class="mroot" onclick="if(event.target===this) closeSeenModal()">
@@ -646,7 +656,7 @@
               <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
               ${PLATEFORMES.map(p => `<label><input type="checkbox" ${state.filters.plateformes.includes(p) ? "checked" : ""} onchange="togglePlat('${p}')"> ${p}</label>`).join("")}
             </div>
-            <p class="range" style="margin-top:6px"><button class="btn" onclick="openSeenModal()">👁️ Films déjà vus (${FILMS.filter((f) => f.g === state.genre && state.seen.includes(f.t)).length})</button></p>
+            <p class="range" style="margin-top:6px"><button class="btn" onclick="openSeenModal()">👁️ Films déjà vus (${seenInSelection().length})</button></p>
             <p class="range" style="margin-top:6px">${isWE
               ? "🍿 C'est le week-end : les sorties en salle (Pathé Palace Opéra · Grand Rex · Max Linder) sont incluses."
               : "🎟️ Les films en salle apparaissent ici du vendredi au dimanche — en semaine, uniquement streamings et VOD."}</p>
