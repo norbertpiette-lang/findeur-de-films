@@ -291,8 +291,8 @@
         }
         recomputeSeen(); save(); schedulePush(); window.__keepScroll = true; render();
       };
-      window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; save(); schedulePush(); render(); };
-      window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); render(); };
+      window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); };
+      window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); };
       window.toggleBig = () => { state.filters.big = !state.filters.big; save(); render(); };
       window.togglePlat = (p) => {
         state.filters.plateformes = state.filters.plateformes.includes(p)
