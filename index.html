@@ -54,6 +54,8 @@
       .sugg:hover { background: #334155; }
       .sugg small { display: block; color: #94a3b8; font-size: .72rem; }
       .picked { border: 1px solid #059669; background: #064e3b; border-radius: 8px; padding: 6px 10px; margin-top: 8px; color: #6ee7b7; font-size: .85rem; }
+      .poster { width: 60px; min-height: 88px; border-radius: 6px; overflow: hidden; background: #1e293b; border: 1px solid #334155; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1.3rem; }
+      .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .starlabel { font-size: .72rem; color: #94a3b8; }
       .backlink { background: none; border: none; color: #64748b; font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; }
       .filters { display: flex; gap: 14px; flex-wrap: wrap; font-size: .8rem; align-items: center; color: #cbd5e1; }
@@ -226,17 +228,18 @@
         return Math.max(5, Math.min(95, Math.round(p)));
       };
 
-      const cardHTML = (f) => {
+      const cardHTML = (f, i) => {
         const b = budget();
         const ok = b === null || f.dur <= b;
         const fin = state.debutMin + f.dur;
         const genreLabel = GENRES.find(g => g.id === f.g).label.replace(/^\S+\s/, "");
         const vu = state.seen.includes(f.t);
         return `<div class="card ${ok ? "" : "toolong"}">
-          <div class="row" style="justify-content:flex-start">
-            <div><div class="title">${esc(f.t)}</div>
+          <div class="row" style="justify-content:flex-start;align-items:flex-start">
+            <div style="flex:1;min-width:0"><div class="title">${esc(f.t)}</div>
             <div class="meta">${esc(f.r)} · ${f.y} · ${genreLabel} · ⏱️ ${fmtDur(f.dur)}</div></div>
-            ${f.big ? '<span class="chip amber">🖥️ Mérite grand écran</span>' : ""}
+            ${f.big ? '<span class="chip amber">🖥️ Mérite grand écran</span>' : ""}</div>
+            <div class="poster" data-title="${esc(f.t)}" id="poster-${i}">🎞️</div>
           </div>
           ${b !== null ? (ok
             ? `<div class="fit-ok">✓ finit vers ${fmtH(fin)} (couché ${fmtH(state.debutMin + b)})</div>`
@@ -570,6 +573,29 @@
 
         app.innerHTML = h;
         window.scrollTo(0, 0);
+        loadPosters();
+      };
+
+      // Affiches (jackettes) via Wikipédia, avec cache local
+      const POSTER_KEY = "findeur-posters";
+      let posterCache = {};
+      try { posterCache = JSON.parse(localStorage.getItem(POSTER_KEY) || "{}") || {}; } catch (e) {}
+      const savePosterCache = () => { try { localStorage.setItem(POSTER_KEY, JSON.stringify(posterCache)); } catch (e) {} };
+      const wikiPoster = async (t) => {
+        for (const q of [t, t + " (film)", t + " (film, " + (t.match(/\d{4}/) ? "" : "") + ")"].slice(0, 2)) {
+          try {
+            const r = await fetch("https://fr.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(q));
+            if (r.ok) { const j = await r.json(); if (j.thumbnail && j.thumbnail.source) return j.thumbnail.source; }
+          } catch (e) { /* hors ligne */ }
+        }
+        return null;
+      };
+      const loadPosters = async () => {
+        document.querySelectorAll(".poster").forEach(async (el) => {
+          const t = el.dataset.title;
+          if (!(t in posterCache)) { posterCache[t] = await wikiPoster(t); savePosterCache(); }
+          if (posterCache[t]) el.innerHTML = '<img src="' + posterCache[t] + '" alt="' + esc(t) + '" loading="lazy" />';
+        });
       };
 
       render();
