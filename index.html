@@ -643,7 +643,7 @@
         const app = document.getElementById("app");
         let h = `<h1>🎬 Findeur de Films <span>— profil cinéphile Norbert</span></h1>
           <p class="sub">Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.</p>
-          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button> <button class="btn" onclick="openPicksModal()">🎬 À voir</button></p>`;
+          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button></p>`;
 
         if (state.etape === 0) {
           const b = budget();
@@ -701,7 +701,7 @@
               <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
               ${PLATEFORMES.map(p => `<label><input type="checkbox" ${state.filters.plateformes.includes(p) ? "checked" : ""} onchange="togglePlat('${p}')"> ${p}</label>`).join("")}
             </div>
-            <p class="range" style="margin-top:6px"><button class="btn" onclick="openSeenModal()">👁️ Films déjà vus (${seenInSelection().length})</button></p>
+            <p class="range" style="margin-top:6px"><button class="btn" onclick="openSeenModal()">👁️ Films déjà vus (${seenInSelection().length})</button> <button class="btn" onclick="openPicksModal()">🎬 À voir (${pendingPicks().length})</button></p>
             <p class="range" style="margin-top:6px">${isWE
               ? "🍿 C'est le week-end : les sorties en salle (Pathé Palace Opéra · Grand Rex · Max Linder) sont incluses."
               : "🎟️ Les films en salle apparaissent ici du vendredi au dimanche — en semaine, uniquement streamings et VOD."}</p>
