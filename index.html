@@ -210,6 +210,15 @@
           (f.p.some(p => ["Netflix", "Prime Video", "Sooner", "Cinéma", "Apple TV+"].includes(p)) ? 2 : 0); // accès facile privilégié
       };
 
+      // commentaire personnel : proposé à côté de la note partout où les étoiles apparaissent
+      window.addComment = (t) => {
+        const existing = (state.comments[t] || {}).text || "";
+        const v = window.prompt("Ton commentaire sur ce film (ce qui t'a plu ou déplu : ambiance, rythme, réalisation… — il affinera ton profil cinéphile) :", existing);
+        if (v === null) return; // annulé
+        if (v.trim()) state.comments[t] = { text: v.trim(), at: Date.now() };
+        else delete state.comments[t];
+        save(); schedulePush(); maybeRefreshSeen();
+      };
       const stars = (film) => {
         const r = state.ratings[film.t]?.v ?? null;
         let h = `<div style="display:flex;align-items:center;gap:6px;white-space:nowrap"><div class="stars">`;
@@ -217,7 +226,8 @@
         for (let n = 1; n <= 3; n++) {
           h += `<button class="${r !== null && r >= n ? "on" : ""}" title="${NOTE_LABELS[n]}" onclick="setRating('${escAttr(film.t)}',${n})">${r !== null && r >= n ? "★" : "☆"}</button>`;
         }
-        h += `</div><span class="starlabel">${r !== null ? NOTE_LABELS[r] : "pas encore noté"}</span></div>`;
+        h += `</div><span class="starlabel">${r !== null ? NOTE_LABELS[r] : "pas encore noté"}</span>`;
+        h += `<button class="btn" style="padding:2px 8px;font-size:.75rem" title="${(state.comments[film.t] || {}).text ? "Modifier ton commentaire" : "Ajouter un commentaire personnel"}" onclick="addComment('${escAttr(film.t)}')">💬${(state.comments[film.t] || {}).text ? "✏️" : ""}</button></div>`;
         return h;
       };
 
