@@ -234,35 +234,37 @@
         const fin = state.debutMin + f.dur;
         const genreLabel = GENRES.find(g => g.id === f.g).label.replace(/^\S+\s/, "");
         const vu = state.seen.includes(f.t);
-        return `<div class="card ${ok ? "" : "toolong"}" style="display:flex;gap:12px;align-items:stretch;flex-wrap:nowrap">
-          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
-            <div><div class="title">${esc(f.t)}</div>
-            <div class="meta">${esc(f.r)} · ${f.y} · ${genreLabel} · ⏱️ ${fmtDur(f.dur)}</div>
-            ${f.big ? '<span class="chip amber">🖥️ Mérite grand écran</span>' : ""}</div>
-            ${b !== null ? (ok
-              ? `<div class="fit-ok">✓ finit vers ${fmtH(fin)} (couché ${fmtH(state.debutMin + b)})</div>`
-              : `<div class="fit-ko">⛔ trop long : finirait vers ${fmtH(fin)} pour un coucher à ${fmtH(state.debutMin + b)}</div>`) : ""}
-            <p class="pitch">${esc(f.pitch)}</p>
-            <p class="why">💡 ${esc(f.why)}</p>
-            ${vu ? "" : `<div class="gauge-row">
-              <span class="gauge-lbl">🎯 ${proba(f)} % de chances de te plaire</span>
-              <div class="gauge"><div class="gauge-fill" style="width:${proba(f)}%"></div></div>
-            </div>`}
-            <div>${f.p.map(p => `<span class="chip">${esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
-            <div class="row">
-              <div>
-                <button class="toggle ${vu ? "on" : ""}" onclick="toggleVu('${esc(f.t)}')" title="${vu ? "Marquer comme pas vu" : "Marquer comme vu"}">
-                  <span class="knob"></span>
-                  <span class="t-lbl l">Pas vu</span>
-                  <span class="t-lbl r">Vu</span>
-                </button>
-                ${vu ? "" : `<button class="btn primary" onclick="setPick('${esc(f.t)}')">🎬 À voir — c'est mon choix</button>`}
-                <button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${esc(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>
-              </div>
-              ${vu ? stars(f) : ""}
+        return `<div class="card ${ok ? "" : "toolong"}">
+          <div style="display:flex;flex-direction:row;gap:12px;align-items:stretch;flex-wrap:nowrap">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+              <div><div class="title">${esc(f.t)}</div>
+              <div class="meta">${esc(f.r)} · ${f.y} · ${genreLabel} · ⏱️ ${fmtDur(f.dur)}</div>
+              ${f.big ? '<span class="chip amber">🖥️ Mérite grand écran</span>' : ""}</div>
+              ${b !== null ? (ok
+                ? `<div class="fit-ok">✓ finit vers ${fmtH(fin)} (couché ${fmtH(state.debutMin + b)})</div>`
+                : `<div class="fit-ko">⛔ trop long : finirait vers ${fmtH(fin)} pour un coucher à ${fmtH(state.debutMin + b)}</div>`) : ""}
+              <p class="pitch">${esc(f.pitch)}</p>
+              <p class="why">💡 ${esc(f.why)}</p>
+              ${vu ? "" : `<div class="gauge-row">
+                <span class="gauge-lbl">🎯 ${proba(f)} % de chances de te plaire</span>
+                <div class="gauge"><div class="gauge-fill" style="width:${proba(f)}%"></div></div>
+              </div>`}
+              <div>${f.p.map(p => `<span class="chip">${esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
             </div>
+            <div class="poster" data-title="${esc(f.t)}" id="poster-${i}" style="height:auto;align-self:stretch">🎞️</div>
           </div>
-          <div class="poster" data-title="${esc(f.t)}" id="poster-${i}" style="height:auto;align-self:stretch">🎞️</div>
+          <div class="row">
+            <div>
+              <button class="toggle ${vu ? "on" : ""}" onclick="toggleVu('${esc(f.t)}')" title="${vu ? "Marquer comme pas vu" : "Marquer comme vu"}">
+                <span class="knob"></span>
+                <span class="t-lbl l">Pas vu</span>
+                <span class="t-lbl r">Vu</span>
+              </button>
+              ${vu ? "" : `<button class="btn primary" onclick="setPick('${esc(f.t)}')">🎬 À voir — c'est mon choix</button>`}
+              <button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${esc(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>
+            </div>
+            ${vu ? stars(f) : ""}
+          </div>
         </div>`;
       };
 
