@@ -245,7 +245,7 @@
                 : `<div class="fit-ko">⛔ trop long : finirait vers ${fmtH(fin)} pour un coucher à ${fmtH(state.debutMin + b)}</div>`) : ""}
               <p class="pitch">${esc(f.pitch)}</p>
               <p class="why">💡 ${esc(f.why)}</p>
-              ${vu ? "" : `<div class="gauge-row">
+              ${vu ? `<div class="gauge-row" style="visibility:hidden">
                 <span class="gauge-lbl">🎯 ${proba(f)} % de chances de te plaire</span>
                 <div class="gauge"><div class="gauge-fill" style="width:${proba(f)}%"></div></div>
               </div>`}
