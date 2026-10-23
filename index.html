@@ -799,6 +799,7 @@
           let results = FILMS.filter(f =>
             f.g === state.genre &&
             SELECTION_OK(f) &&
+            !f.t.includes("(re-voir)") &&
             !isIndispo(f.t) &&
             !isSessionSeen(f.t)
           );
