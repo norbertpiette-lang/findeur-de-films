@@ -1,3 +1,9 @@
+---
+name: "findeur-de-films-web"
+title: "🎬 Findeur de Films — version navigateur"
+type: "text/html"
+---
+
 <!doctype html>
 <html lang="fr">
   <head>
@@ -1047,3 +1053,12 @@
         render();
       };
 
+      // purge « Babylon » : correctif unique, exécuté une seule fois puis jamais relancé
+      try { if (!localStorage.getItem("findeur-purge-babylon")) { if (purgePicks()) save(); localStorage.setItem("findeur-purge-babylon", "1"); } } catch (e) {}
+      loadPool().then(() => render()).catch(() => {});
+      loadProfil().then(() => render()).catch(() => {});
+      render();
+      initSync();
+    </script>
+  </body>
+</html>
