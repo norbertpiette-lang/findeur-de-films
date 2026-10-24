@@ -218,9 +218,18 @@
 
       let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
-      // films vus avant cette session : cachés des suggestions ; ceux marqués vus pendant la session restent affichés pour être notés
-      let sessionSeen = new Set(state.seen);
-      const isSessionSeen = (t) => sessionSeen.has(t);
+      // liste « À voir » : un film marqué « vu » disparaît immédiatement des suggestions mais reste visible dans « À voir » pendant 30 minutes
+      // (fenêtre pour le noter ou annuler un « vu » accidentel), puis en sort définitivement et automatiquement
+      const PICK_DELAY = 30 * 60 * 1000;
+      const pickSeenRecent = (t) => { const at = state.seenMap?.[t]; return state.seen.includes(t) && at != null && (Date.now() - at) < PICK_DELAY; };
+      const prunePicks = () => {
+        let changed = false;
+        Object.keys(state.pickHistory || {}).forEach((t) => {
+          const at = state.seenMap?.[t];
+          if (state.seen.includes(t) && at != null && Date.now() - at >= PICK_DELAY) { delete state.pickHistory[t]; changed = true; }
+        });
+        return changed;
+      };
       const IND_DELAY = 90 * 864e5; // rétention indisponibilité : 3 mois
       // critères communs de sélection (utilisés par les suggestions ET la liste des films déjà vus)
       const SELECTION_OK = (f) => {
@@ -330,6 +339,7 @@
         return changed;
       };
       if (purgeMojibake()) save();
+      if (prunePicks()) save(); // retirer de « À voir » les films vus depuis plus de 30 minutes
 
       const fmtH = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); };
       const fmtDur = (m) => Math.floor(m/60) + "h" + String(m%60).padStart(2,"0");
@@ -547,6 +557,7 @@
           delete state.indispo[t]; // un film vu a forcément été trouvé : lever le masquage « indisponible »
           if (isPoolFilm(t)) adopt(t); // auto-adoption au marquage « vu »
           addPoolSeen(t); // mémoriser les films hors stock vus pour ne plus les suggérer
+          if (state.pickHistory[t]) setTimeout(() => { if (prunePicks()) { save(); schedulePush(); } window.__keepScroll = true; render(); maybeRefreshSeen(); }, PICK_DELAY); // sortie automatique de « À voir » 30 min après le marquage
         }
         recomputeSeen(); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen();
       };
@@ -590,6 +601,7 @@
         state.seenDel = mergeMap(remote.seenDel, state.seenDel);
         state.indispo = mergeMap(remote.indispo, state.indispo);
         state.pickHistory = mergeMap(remote.pickHistory, state.pickHistory);
+        prunePicks(); // anti-résurrection : un film vu depuis plus de 30 min ne doit pas revenir dans « À voir » via la fusion serveur
         // fusion du stock personnel adopté (union par titre)
         const mergedAdopted = (remote.adopted || []).slice();
         getAdopted().forEach((f) => { if (!mergedAdopted.some((x) => x.t === f.t)) mergedAdopted.push(f); });
@@ -667,7 +679,7 @@
       const pendingPicks = () => {
         const merged = new Map();
         Object.keys(state.pickHistory || {})
-          .filter((t) => !state.seen.includes(t) && !state.ratings[t])
+          .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t)) && !state.ratings[t])
           .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0))
           .forEach((t) => {
             const k = normTitle(t);
@@ -769,7 +781,7 @@
       const picksInSelection = () => pendingPicks().filter((t) => { const f = findFilm(t); return !!f && f.g === state.genre; });
       // liste brute « À voir » (sans fusion, doublons inclus) — compteur du bouton de la première page
       const pendingAll = () => Object.keys(state.pickHistory || {})
-        .filter((t) => !state.seen.includes(t) && !state.ratings[t])
+        .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t)) && !state.ratings[t])
         .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
       const maybeRefreshSeen = () => { if (window.__seenOpen) openSeenModal(); if (window.__picksOpen) openPicksModal(); };
       window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
@@ -779,7 +791,7 @@
         // mode « all » : liste brute de tous les films « À voir » — aucun filtre, aucune fusion, doublons conservés
         if (mode === "all") {
           const raw = Object.keys(state.pickHistory || {})
-            .filter((t) => !state.seen.includes(t) && !state.ratings[t])
+            .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t)) && !state.ratings[t])
             .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
           // aucun filtre : les titres hors catalogue sont affichés aussi (carte simplifiée)
           const cardsAll = raw.map((t, i) => {
@@ -994,6 +1006,7 @@
       };
 
       const render = () => {
+        if (prunePicks()) { save(); schedulePush(); } // retrait automatique des films vus depuis plus de 30 min de la liste « À voir »
         const app = document.getElementById("app");
         let h = `<h1><a href="#" onclick="reset();return false" title="Recommencer depuis le début" style="text-decoration:none;color:inherit">🎬 Findeur de Films</a></h1>
           <p class="sub">${esc(profilTxt || "Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.")}</p>
@@ -1053,9 +1066,9 @@
             SELECTION_OK(f) &&
             !f.t.includes("(re-voir)") &&
             !isIndispo(f.t) &&
-            !isSessionSeen(f.t)
+            !state.seen.includes(f.t)
           );
-          const poolSel = (poolCache || []).filter((f) => f && f.g === state.genre && !getAdopted().some((x) => x.t === f.t) && !FILMS.some((c) => c.t === f.t) && !state.seen.includes(f.t) && !isSessionSeen(f.t) && !getPoolSeen().includes(f.t) && SELECTION_OK(f));
+          const poolSel = (poolCache || []).filter((f) => f && f.g === state.genre && !getAdopted().some((x) => x.t === f.t) && !FILMS.some((c) => c.t === f.t) && !state.seen.includes(f.t) && !getPoolSeen().includes(f.t) && SELECTION_OK(f));
           const masques = FILMS.filter(f => f.g === state.genre && isIndispo(f.t));
           // liste unique : stock + hors stock mélangés, classés par potentiel décroissant puis ordre alphabétique
           const allResults = results.concat(poolSel);
