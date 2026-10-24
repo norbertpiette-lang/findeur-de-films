@@ -75,6 +75,7 @@
       footer { margin-top: 32px; padding-top: 14px; border-top: 1px solid #1e293b; font-size: .72rem; color: #64748b; }
       .sessionline { margin: 4px 0; }
       .range { color: #94a3b8; font-size: .78rem; }
+      .dispo-live { font-size: .78rem; color: #cbd5e1; margin-top: 4px; line-height: 1.7; }
     </style>
   </head>
   <body>
@@ -439,6 +440,7 @@
                 <div class="gauge"><div class="gauge-fill" style="width:${proba(f)}%"></div></div>
               </div>`}
               <div>${f.p.map(p => `<span class="chip">${p.includes("VOD") ? "💳 VOD" : p === "Cinéma" ? "🎟️ Cinéma" : p === "Sooner" ? "🎬 Sooner" : p === "Arte" ? "🎨 Arte" : p === "YouTube" ? "▶️ YouTube" : "📺 " + esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
+              <div class="dispo-live" data-title="${esc(f.t)}" data-year="${f.y || ""}">📡 Disponibilité du jour (JustWatch France) : vérification…</div>
             </div>
             <div class="poster" data-title="${esc(f.t)}" id="poster-${i}" style="height:auto;align-self:stretch">🎞️</div>
           </div>
@@ -776,6 +778,7 @@
             </div>
           </div>`;
         loadPosters();
+        loadDispo();
       };
       // films « À voir » de l'ambiance courante (compteur du bouton) ; le reste est listé à part dans la fenêtre
       const findFilm = (t) => FILMS.find((x) => x.t === t) || (poolCache || []).find((x) => x.t === t) || getAdopted().find((x) => x.t === t) || null;
@@ -820,6 +823,7 @@
               </div>
             </div>`;
           loadPosters();
+          loadDispo();
           return;
         }
         const hasGenre = !!state.genre;
@@ -852,6 +856,7 @@
             </div>
           </div>`;
         loadPosters();
+        loadDispo();
       };
       window.closeAddModal = () => { document.getElementById("modal-root").innerHTML = ""; };
       window.openCatalogModal = () => {
@@ -1118,6 +1123,7 @@
               ${f.p.length > 0 ? f.p.map(p => `<span class="chip green">${p.includes("VOD") ? "💳 Location/achat VOD" : p === "Cinéma" ? "🎟️ Cinéma (Pathé Palace Opéra · Grand Rex · Max Linder)" : p === "Sooner" ? "🎬 Sooner" : p === "Arte" ? "🎨 Arte (replay gratuit)" : p === "YouTube" ? "▶️ YouTube (location/achat)" : "📺 " + esc(p)}</span>`).join("") +
                 (f.g === "comedie" ? '<span class="chip green">VF requise — vérifie la piste VF</span>' : "")
                 : `<p class="none">⚠️ Aucune plateforme identifiée — vérifie sur JustWatch France.</p>`}
+              <div class="dispo-live" data-title="${esc(f.t)}" data-year="${f.y || ""}" style="margin-top:8px">📡 Disponibilité du jour (JustWatch France) : vérification…</div>
             </div>
             ${f.big ? '<div style="margin-top:8px"><span class="chip amber">🖥️ Mérite le vidéoprojecteur</span></div>' : ""}
             <p class="warn" style="margin-top:10px">⚠️ Confirme la disponibilité sur l'app de la plateforme (fiches VOD parfois fantômes).${f.g === "comedie" ? " Vérifie la VF." : ""} Une fois le film vu, note-le via « ➕ J'ai vu un film ».</p>
@@ -1140,6 +1146,7 @@
         window.scrollTo(0, jump ? 0 : sy);
         window.__jumpTop = false;
         loadPosters();
+        loadDispo();
       };
 
       // Affiches (jackettes) via Wikipédia, avec cache local
@@ -1187,6 +1194,90 @@
         try { localStorage.setItem("findeur-tmdb-key", val.trim()); } catch (e) {}
         posterCache = {}; try { localStorage.removeItem(POSTER_KEY); } catch (e) {}
         render();
+      };
+
+      // --- disponibilité du jour (v86) : vérification JustWatch France sur chaque fiche affichée ---
+      // source : TMDB « watch/providers » (données de disponibilité fournies par JustWatch, région France)
+      // l'API directe JustWatch n'est pas interrogeable depuis un navigateur (CORS) ; TMDB est son partenaire officiel de données.
+      // Re-vérification quotidienne : chaque film est contrôlé à la date du jour (cache local daté), jamais plus d'une fois par jour.
+      const DISPO_KEY = "findeur-dispo";
+      let dispoCache = {};
+      try { dispoCache = JSON.parse(localStorage.getItem(DISPO_KEY) || "{}") || {}; } catch (e) {}
+      const saveDispoCache = () => { try { localStorage.setItem(DISPO_KEY, JSON.stringify(dispoCache)); } catch (e) {} };
+      const dispoDay = () => new Date().toISOString().slice(0, 10);
+      // plateformes préférées (celles de l'app) : nom JustWatch/TMDB → libellé ; absence dans cette table = plateforme non préférée (chip neutre)
+      const DISPO_PREF = { "Netflix": "Netflix", "Amazon Prime Video": "Prime Video", "Apple TV+": "Apple TV+", "Apple TV": "Apple TV+", "YouTube": "YouTube", "Arte": "Arte", "ARTE": "Arte", "Sooner": "Sooner" };
+      const JW_LINK = (t) => "https://www.justwatch.com/fr/recherche?q=" + encodeURIComponent(t);
+      let tmdbIdCache = {};
+      // titres de l'app ≠ titres TMDB : retirer les suffixes entre parenthèses (« (re-voir) », « (ciné-concert) », titres alternatifs…)
+      const cleanTitle = (t) => String(t).replace(/\s*\([^)]*\)\s*$/, "").trim();
+      const getTmdbId = async (t, y) => {
+        const q = cleanTitle(t);
+        if (q in tmdbIdCache) return tmdbIdCache[q];
+        const key = getTmdbKey(); if (!key) return null;
+        try {
+          let r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${key}&query=${encodeURIComponent(q)}${y ? "&year=" + y : ""}&language=fr-FR`);
+          if (r.ok) {
+            let j = await r.json();
+            let hit = (j.results || [])[0];
+            if (!hit && y) { // 2e essai sans l'année (décalage de date de sortie ou titre FR non reconnu)
+              r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${key}&query=${encodeURIComponent(q)}&language=fr-FR`);
+              if (r.ok) { j = await r.json(); hit = (j.results || [])[0]; }
+            }
+            tmdbIdCache[q] = hit ? hit.id : -1; // -1 = introuvable dans la base (cache négatif du jour)
+            return tmdbIdCache[q];
+          }
+        } catch (e) {}
+        return null; // hors ligne ou clé absente
+      };
+      const fetchDispo = async (f) => {
+        const today = dispoDay();
+        const c = dispoCache[f.t];
+        if (c && c.checkedAt === today) return c; // déjà vérifié aujourd'hui : aucune requête
+        const key = getTmdbKey(); if (!key) return null;
+        const id = await getTmdbId(f.t, f.y);
+        if (id === null) return null;
+        if (id < 0) { const miss = { checkedAt: today, notFound: true }; dispoCache[f.t] = miss; saveDispoCache(); return miss; }
+        try {
+          const r = await fetch(`https://api.themoviedb.org/3/movie/${id}/watch/providers?api_key=${key}&watch_region=FR`);
+          if (!r.ok) return null;
+          const j = await r.json();
+          const fr = ((j.results || {}).FR) || {};
+          const entry = { checkedAt: today, flat: (fr.flatrate || []).map((x) => x.provider_name), free: (fr.free || []).map((x) => x.provider_name), rent: (fr.rent || []).map((x) => x.provider_name), buy: (fr.buy || []).map((x) => x.provider_name) };
+          dispoCache[f.t] = entry; saveDispoCache();
+          return entry;
+        } catch (e) { return null; }
+      };
+      const dispoHTML = (c, f) => {
+        if (!c) return `<span class="chip" style="opacity:.65">📡 Non vérifié (hors ligne ou sans clé TMDB)</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
+        if (c.notFound) return `<span class="chip" style="opacity:.65">📡 Non vérifiable automatiquement (introuvable dans la base du jour)</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
+        const done = new Set(); const chips = [];
+        (c.flat || []).concat(c.free || []).forEach((n) => {
+          if (done.has(n)) return; done.add(n);
+          const lbl = DISPO_PREF[n]; // plateformes préférées en vert, en tête
+          chips.push({ pref: !!lbl, html: `<span class="chip ${lbl ? "green" : ""}">📺 ${esc(lbl || n)}${(c.free || []).includes(n) ? " (gratuit)" : " (abonnement)"}</span>` });
+        });
+        const vodN = (c.rent || []).length + (c.buy || []).length;
+        if (vodN > 0) chips.push({ pref: true, html: `<span class="chip green">💳 Location/achat VOD (${vodN} offre${vodN > 1 ? "s" : ""})</span>` });
+        if (f && f.p && f.p.includes("Cinéma")) chips.push({ pref: true, html: `<span class="chip green">🎟️ En salle — séances du jour : Pathé Palace Opéra · Grand Rex · Max Linder</span>` });
+        if (!chips.length) return `<span class="chip" style="color:#fb7185;border-color:#b45309">⚠️ Aucune offre en France aujourd'hui</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
+        chips.sort((a, b) => (b.pref ? 1 : 0) - (a.pref ? 1 : 0));
+        return chips.map((x) => x.html).join("");
+      };
+      const loadDispo = async () => {
+        const today = dispoDay();
+        const els = Array.from(document.querySelectorAll(".dispo-live"));
+        for (const el of els) {
+          if (el.dataset.done === "1") continue;
+          el.dataset.done = "1";
+          const t = el.dataset.title;
+          if (!t) continue;
+          const f = findFilm(t) || { t, y: Number(el.dataset.year) || undefined, p: [] };
+          const fresh = !!(dispoCache[t] && dispoCache[t].checkedAt === today); // déjà vérifié aujourd'hui → aucun appel réseau
+          const c = await fetchDispo(f);
+          el.innerHTML = `📡 Aujourd'hui (${today}) — JustWatch France : ${dispoHTML(c, f)}`;
+          if (!fresh) await new Promise((r) => setTimeout(r, 250)); // re-vérifications décalées pour ménager l'API TMDB
+        }
       };
 
       // purge « Babylon » : correctif unique, exécuté une seule fois puis jamais relancé
