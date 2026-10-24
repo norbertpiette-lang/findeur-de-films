@@ -433,7 +433,7 @@
                 <span class="gauge-lbl">🎯 ${proba(f)} % de chances de te plaire</span>
                 <div class="gauge"><div class="gauge-fill" style="width:${proba(f)}%"></div></div>
               </div>`}
-              <div>${f.p.map(p => `<span class="chip">${p.includes("VOD") ? "💳 VOD" : p === "Cinéma" ? "🎟️ Cinéma" : p === "Sooner" ? "🎬 Sooner" : p === "Arte" ? "🎨 Arte" : p === "YouTube" ? "▶️ YouTube" : "📺 " + esc(p)}</span>`).join("")}${f.g === "comedie" ? '<span class="chip green">VF disponible (exigée)</span>' : ""}</div>
+              ${f.g === "comedie" ? '<div><span class="chip green">VF disponible (exigée)</span></div>' : ""}
               <div class="dispo-live" data-title="${esc(f.t)}" data-year="${f.y || ""}">📡 Disponibilité du jour (JustWatch France) : vérification…</div>
             </div>
             <div class="poster" data-title="${esc(f.t)}" id="poster-${i}" style="height:auto;align-self:stretch">🎞️</div>
