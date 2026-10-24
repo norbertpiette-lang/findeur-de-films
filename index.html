@@ -218,8 +218,8 @@
 
       let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
-      // liste « À voir » : un film marqué « vu » disparaît immédiatement des suggestions mais reste visible dans « À voir » pendant 30 minutes
-      // (fenêtre pour le noter ou annuler un « vu » accidentel), puis en sort définitivement et automatiquement
+      // film marqué « vu » : il reste visible dans les suggestions ET la liste « À voir » pendant 30 minutes
+      // (fenêtre pour le noter ou annuler un « vu » accidentel), puis en disparaît définitivement et automatiquement
       const PICK_DELAY = 30 * 60 * 1000;
       const pickSeenRecent = (t) => { const at = state.seenMap?.[t]; return state.seen.includes(t) && at != null && (Date.now() - at) < PICK_DELAY; };
       const prunePicks = () => {
@@ -557,7 +557,7 @@
           delete state.indispo[t]; // un film vu a forcément été trouvé : lever le masquage « indisponible »
           if (isPoolFilm(t)) adopt(t); // auto-adoption au marquage « vu »
           addPoolSeen(t); // mémoriser les films hors stock vus pour ne plus les suggérer
-          if (state.pickHistory[t]) setTimeout(() => { if (prunePicks()) { save(); schedulePush(); } window.__keepScroll = true; render(); maybeRefreshSeen(); }, PICK_DELAY); // sortie automatique de « À voir » 30 min après le marquage
+          setTimeout(() => { if (prunePicks()) { save(); schedulePush(); } window.__keepScroll = true; render(); maybeRefreshSeen(); }, PICK_DELAY); // après 30 min : sortie automatique des suggestions et de « À voir »
         }
         recomputeSeen(); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen();
       };
@@ -1066,7 +1066,7 @@
             SELECTION_OK(f) &&
             !f.t.includes("(re-voir)") &&
             !isIndispo(f.t) &&
-            !state.seen.includes(f.t)
+            (!state.seen.includes(f.t) || pickSeenRecent(f.t))
           );
           const poolSel = (poolCache || []).filter((f) => f && f.g === state.genre && !getAdopted().some((x) => x.t === f.t) && !FILMS.some((c) => c.t === f.t) && !state.seen.includes(f.t) && !getPoolSeen().includes(f.t) && SELECTION_OK(f));
           const masques = FILMS.filter(f => f.g === state.genre && isIndispo(f.t));
