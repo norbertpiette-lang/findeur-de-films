@@ -217,15 +217,16 @@
       let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
       // film marqué « vu » depuis la liste « À voir » : il y reste visible 30 minutes avec ses étoiles (fenêtre pour le noter sur place),
-      // puis en sort automatiquement — ou immédiatement dès qu'il est noté. Il reste aussi 30 min dans les suggestions.
-      // si « Pas vu » est annulé dans ce délai, le film redevient « À voir » à part entière (désactivation d'un « vu » accidentel)
+      // et la notation n'efface pas la fiche immédiatement : elle reste encore 30 minutes après les étoiles, le temps d'ajouter un commentaire (💬).
+      // après ce délai la fiche sort automatiquement des listes « À voir » (et des suggestions). Si « Pas vu » est annulé à temps, le film redevient « À voir ».
       const PICK_DELAY = 30 * 60 * 1000;
       const pickSeenRecent = (t) => { const at = state.seenMap?.[t]; return state.seen.includes(t) && at != null && (Date.now() - at) < PICK_DELAY; };
+      const pickRatedRecent = (t) => { const r = state.ratings?.[t]; return !!r && r.at != null && (Date.now() - r.at) < PICK_DELAY; };
       const prunePicks = () => {
         let changed = false;
         Object.keys(state.pickHistory || {}).forEach((t) => {
           const at = state.seenMap?.[t];
-          if (state.seen.includes(t) && at != null && Date.now() - at >= PICK_DELAY) { delete state.pickHistory[t]; changed = true; }
+          if (state.seen.includes(t) && at != null && Date.now() - at >= PICK_DELAY && !pickRatedRecent(t)) { delete state.pickHistory[t]; changed = true; }
         });
         return changed;
       };
@@ -559,8 +560,8 @@
         }
         recomputeSeen(); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen();
       };
-      window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; if (isPoolFilm(t)) adopt(t); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); };
-      window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); };
+      window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; if (isPoolFilm(t)) adopt(t); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); if (state.pickHistory[t]) setTimeout(() => { if (prunePicks()) { save(); schedulePush(); } window.__keepScroll = true; render(); maybeRefreshSeen(); }, PICK_DELAY); }; // noté : la fiche reste 30 min dans « À voir » le temps de commenter (💬), puis sort automatiquement
+      window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); if (state.pickHistory[state.pick.t]) setTimeout(() => { if (prunePicks()) { save(); schedulePush(); } window.__keepScroll = true; render(); maybeRefreshSeen(); }, PICK_DELAY); };
       window.toggleIndispo = (t) => {
         if (isIndispo(t)) delete state.indispo[t];
         else state.indispo[t] = Date.now();
@@ -670,7 +671,7 @@
       const pendingPicks = () => {
         const merged = new Map();
         Object.keys(state.pickHistory || {})
-          .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t)) && !state.ratings[t])
+          .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t) || pickRatedRecent(t)) && (!state.ratings[t] || pickRatedRecent(t)))
           .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0))
           .forEach((t) => {
             const k = normTitle(t);
@@ -773,7 +774,7 @@
       const picksInSelection = () => pendingPicks().filter((t) => { const f = findFilm(t); return !!f && f.g === state.genre; });
       // liste brute « À voir » (sans fusion, doublons inclus) — compteur du bouton de la première page
       const pendingAll = () => Object.keys(state.pickHistory || {})
-        .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t)) && !state.ratings[t])
+        .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t) || pickRatedRecent(t)) && (!state.ratings[t] || pickRatedRecent(t)))
         .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
       const maybeRefreshSeen = () => { if (window.__seenOpen) openSeenModal(); if (window.__picksOpen) openPicksModal(); };
       window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
@@ -783,7 +784,7 @@
         // mode « all » : liste brute de tous les films « À voir » — aucun filtre, aucune fusion, doublons conservés
         if (mode === "all") {
           const raw = Object.keys(state.pickHistory || {})
-            .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t)) && !state.ratings[t])
+            .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t) || pickRatedRecent(t)) && (!state.ratings[t] || pickRatedRecent(t)))
             .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
           // aucun filtre : les titres hors catalogue sont affichés aussi (carte simplifiée)
           const cardsAll = raw.map((t, i) => {
