@@ -219,6 +219,7 @@
       // film marqué « vu » depuis la liste « À voir » : il y reste visible 30 minutes avec ses étoiles (fenêtre pour le noter sur place),
       // et la notation n'efface pas la fiche immédiatement : elle reste encore 30 minutes après les étoiles, le temps d'ajouter un commentaire (💬).
       // après ce délai la fiche sort automatiquement des listes « À voir » (et des suggestions). Si « Pas vu » est annulé à temps, le film redevient « À voir ».
+      // film « À voir » marqué « indisponible » 🚫 : il reste 30 minutes dans la liste puis en est retiré automatiquement (le masquage des suggestions, lui, dure 3 mois).
       const PICK_DELAY = 30 * 60 * 1000;
       const pickSeenRecent = (t) => { const at = state.seenMap?.[t]; return state.seen.includes(t) && at != null && (Date.now() - at) < PICK_DELAY; };
       const pickRatedRecent = (t) => { const r = state.ratings?.[t]; return !!r && r.at != null && (Date.now() - r.at) < PICK_DELAY; };
@@ -227,6 +228,7 @@
         Object.keys(state.pickHistory || {}).forEach((t) => {
           const at = state.seenMap?.[t];
           if (state.seen.includes(t) && at != null && Date.now() - at >= PICK_DELAY && !pickRatedRecent(t)) { delete state.pickHistory[t]; changed = true; }
+          if (state.indispo[t] != null && Date.now() - state.indispo[t] >= PICK_DELAY) { delete state.pickHistory[t]; changed = true; } // indisponible depuis 30 min : sortie de « À voir »
         });
         return changed;
       };
@@ -452,7 +454,7 @@
                 : (state.pickHistory[f.t]
                   ? `<button class="btn" style="opacity:.65;cursor:default" title="Ce film est déjà dans ta liste « À voir »">✔️ Dans la liste à voir</button>`
                   : `<button class="btn primary" onclick="setPick('${escAttr(f.t)}')">🎬 À voir</button>`))}
-              ${vu ? "" : `<button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${escAttr(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>`}
+              ${vu ? "" : `<button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${escAttr(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — il quittera la liste « À voir » après 30 min ; clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois et le retirer de « À voir » après 30 min"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>`}
             </div>
             ${vu ? stars(f) : ""}
           </div>
@@ -564,7 +566,7 @@
       window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); if (state.pickHistory[state.pick.t]) setTimeout(() => { if (prunePicks()) { save(); schedulePush(); } window.__keepScroll = true; render(); maybeRefreshSeen(); }, PICK_DELAY); };
       window.toggleIndispo = (t) => {
         if (isIndispo(t)) delete state.indispo[t];
-        else state.indispo[t] = Date.now();
+        else { state.indispo[t] = Date.now(); if (state.pickHistory[t]) setTimeout(() => { if (prunePicks()) { save(); schedulePush(); } window.__keepScroll = true; render(); maybeRefreshSeen(); }, PICK_DELAY); } // marqué « indisponible » : sortie automatique de « À voir » après 30 min
         save(); schedulePush(); window.__keepScroll = true; render();
       };
       // retour à l'étape 1 : ne réinitialise QUE la séance en cours — les données durables (vus, notes, commentaires, liste « À voir ») restent en local et à l'écran
