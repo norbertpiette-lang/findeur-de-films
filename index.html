@@ -564,8 +564,9 @@
         else state.indispo[t] = Date.now();
         save(); schedulePush(); window.__keepScroll = true; render();
       };
-      window.reset = () => { window.__jumpTop = true; state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
-        try { localStorage.removeItem(LS); } catch (e) {} render(); };
+      // retour à l'étape 1 : ne réinitialise QUE la séance en cours — les données durables (vus, notes, commentaires, liste « À voir ») restent en local et à l'écran
+      window.reset = () => { window.__jumpTop = true; state = { ...state, etape: 0, debutMin: null, coucheMin: null, noTime: false, genre: null, envie: null, ambianceNote: "", envieNote: "", filters: { big: false, plateformes: [] }, pick: null };
+        save(); render(); };
 
       // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
       const getToken = () => { try { return localStorage.getItem(SYNC.tokenKey) || ""; } catch (e) { return ""; } };
