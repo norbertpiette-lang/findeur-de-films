@@ -1205,8 +1205,10 @@
       try { dispoCache = JSON.parse(localStorage.getItem(DISPO_KEY) || "{}") || {}; } catch (e) {}
       const saveDispoCache = () => { try { localStorage.setItem(DISPO_KEY, JSON.stringify(dispoCache)); } catch (e) {} };
       const dispoDay = () => new Date().toISOString().slice(0, 10);
-      // plateformes préférées (celles de l'app) : nom JustWatch/TMDB → libellé ; absence dans cette table = plateforme non préférée (chip neutre)
+      // plateformes préférées (celles de l'app) : nom JustWatch/TMDB → libellé ; les plateformes ABSENTES de cette table ne sont PAS affichées
       const DISPO_PREF = { "Netflix": "Netflix", "Amazon Prime Video": "Prime Video", "Apple TV+": "Apple TV+", "Apple TV": "Apple TV+", "YouTube": "YouTube", "Arte": "Arte", "ARTE": "Arte", "Sooner": "Sooner" };
+      // boutiques préférées pour la location/achat VOD (nom JustWatch/TMDB → libellé) : la VOD est DÉTAILLÉE par plateforme, jamais regroupée
+      const DISPO_RENT_PREF = { "Apple iTunes": "Apple TV Store", "Apple TV": "Apple TV Store", "Amazon Video": "Amazon Video", "Amazon Prime Video": "Amazon Video", "YouTube": "YouTube", "Canal VOD": "Canal VOD" };
       const JW_LINK = (t) => "https://www.justwatch.com/fr/recherche?q=" + encodeURIComponent(t);
       let tmdbIdCache = {};
       // titres de l'app ≠ titres TMDB : retirer les suffixes entre parenthèses (« (re-voir) », « (ciné-concert) », titres alternatifs…)
@@ -1253,17 +1255,29 @@
         if (!c) return `<span class="chip" style="opacity:.65">📡 Non vérifié (hors ligne ou sans clé TMDB)</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
         if (c.notFound) return `<span class="chip" style="opacity:.65">📡 Non vérifiable automatiquement (introuvable dans la base du jour)</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
         const done = new Set(); const chips = [];
+        // abonnements et accès gratuit : uniquement les plateformes préférées — les autres ne sont pas affichées
         (c.flat || []).concat(c.free || []).forEach((n) => {
-          if (done.has(n)) return; done.add(n);
-          const lbl = DISPO_PREF[n]; // plateformes préférées en vert, en tête
-          chips.push({ pref: !!lbl, html: `<span class="chip ${lbl ? "green" : ""}">📺 ${esc(lbl || n)}${(c.free || []).includes(n) ? " (gratuit)" : " (abonnement)"}</span>` });
+          if (done.has(n)) return;
+          const lbl = DISPO_PREF[n];
+          if (!lbl) return; // plateforme non préférée : masquée
+          done.add(n);
+          chips.push(`<span class="chip green">📺 ${esc(lbl)}${(c.free || []).includes(n) ? " (gratuit)" : " (abonnement)"}</span>`);
         });
-        const vodN = (c.rent || []).length + (c.buy || []).length;
-        if (vodN > 0) chips.push({ pref: true, html: `<span class="chip green">💳 Location/achat VOD (${vodN} offre${vodN > 1 ? "s" : ""})</span>` });
-        if (f && f.p && f.p.includes("Cinéma")) chips.push({ pref: true, html: `<span class="chip green">🎟️ En salle — séances du jour : Pathé Palace Opéra · Grand Rex · Max Linder</span>` });
-        if (!chips.length) return `<span class="chip" style="color:#fb7185;border-color:#b45309">⚠️ Aucune offre en France aujourd'hui</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
-        chips.sort((a, b) => (b.pref ? 1 : 0) - (a.pref ? 1 : 0));
-        return chips.map((x) => x.html).join("");
+        // location/achat VOD : détail par boutique préférée, jamais regroupée
+        const doneV = new Set();
+        (c.rent || []).concat(c.buy || []).forEach((n) => {
+          if (doneV.has(n)) return;
+          const lbl = DISPO_RENT_PREF[n];
+          if (!lbl) return; // boutique non préférée : masquée
+          doneV.add(n);
+          chips.push(`<span class="chip green">💳 ${esc(lbl)} — location/achat VOD</span>`);
+        });
+        if (f && f.p && f.p.includes("Cinéma")) chips.push(`<span class="chip green">🎟️ En salle — séances du jour : Pathé Palace Opéra · Grand Rex · Max Linder</span>`);
+        if (!chips.length) {
+          const offres = (c.flat || []).length + (c.free || []).length + (c.rent || []).length + (c.buy || []).length;
+          return `<span class="chip" style="color:#fb7185;border-color:#b45309">⚠️ ${offres > 0 ? "Aujourd'hui : disponible, mais sur aucune de tes plateformes préférées" : "Aucune offre en France aujourd'hui"}</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
+        }
+        return chips.join("");
       };
       const loadDispo = async () => {
         const today = dispoDay();
