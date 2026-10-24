@@ -1,9 +1,3 @@
----
-name: "findeur-de-films-web"
-title: "🎬 Findeur de Films — version navigateur"
-type: "text/html"
----
-
 <!doctype html>
 <html lang="fr">
   <head>
@@ -427,7 +421,7 @@ type: "text/html"
                 : (state.pickHistory[f.t]
                   ? `<button class="btn" style="opacity:.65;cursor:default" title="Ce film est déjà dans ta liste « À voir »">✔️ Dans la liste à voir</button>`
                   : `<button class="btn primary" onclick="setPick('${escAttr(f.t)}')">🎬 À voir — c'est mon choix</button>`))}
-              <button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${escAttr(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>
+              ${vu ? "" : `<button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${escAttr(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>`}
             </div>
             ${vu ? stars(f) : ""}
           </div>
@@ -528,6 +522,7 @@ type: "text/html"
         } else { // ajout
           state.seenMap[t] = now;
           delete state.seenDel[t];
+          delete state.indispo[t]; // un film vu a forcément été trouvé : lever le masquage « indisponible »
           if (isPoolFilm(t)) adopt(t); // auto-adoption au marquage « vu »
           addPoolSeen(t); // mémoriser les films hors stock vus pour ne plus les suggérer
         }
