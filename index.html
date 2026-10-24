@@ -254,48 +254,63 @@ type: "text/html"
       const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} };
 
       // purge héritée des problèmes d'encodage (Ã©, ï¿½…) : répare les accents, fusionne les doublons, à chaque chargement
-      const MOJI = /Ã|ï¿½|\uFFFD|Â/;
+      const MOJI = /Ã|ï¿½|\uFFFD|Â|ƒ/;
       const fixMojibake = (s) => {
         if (!MOJI.test(s)) return s;
         let dec = s;
         try { dec = new TextDecoder().decode(Uint8Array.from(s, (c) => c.charCodeAt(0))); } catch (e) {}
         let out = (dec && dec !== s && !MOJI.test(dec) && !dec.includes("\uFFFD")) ? dec : s;
-        const pass = (x) => x.replace(/ï¿½|\uFFFD/g, "é").replace(/Ã©/g, "é").replace(/Ã¨/g, "è").replace(/Ã¯/g, "ï").replace(/Ãª/g, "ê").replace(/Ã¢/g, "â").replace(/Ã¹/g, "ù").replace(/Ã/g, "é").replace(/Â/g, "");
-        out = pass(pass(out)); // deux passages : certaines séquences (ex. Ã¯¿½) se reforment après le premier
+        const pass = (x) => x.replace(/éƒ©/g, "é").replace(/ï¿½|\uFFFD/g, "é").replace(/Ã©/g, "é").replace(/Ã¨/g, "è").replace(/Ã¯/g, "ï").replace(/Ãª/g, "ê").replace(/Ã¢/g, "â").replace(/Ã¹/g, "ù").replace(/ƒ©/g, "é").replace(/Ã/g, "é").replace(/ƒ/g, "").replace(/Â/g, "");
+        out = pass(pass(out)); // deux passages : certaines séquences se reforment après le premier
         return out;
       };
       const purgeMojibake = () => {
         let changed = false;
-        const wasMoji = {};
         const maps = ["ratings", "comments", "seenMap", "seenDel", "pickHistory"];
-        // 1. textes des commentaires
-        Object.values(state.comments || {}).forEach((c) => { if (c && c.text) { const nt = fixMojibake(c.text); if (nt !== c.text) { c.text = nt; changed = true; } } });
-        // 2. clés des maps : accents réparés, doublons fusionnés (on garde la valeur la plus récente)
-        maps.forEach((m) => {
-          const o = state[m] || {}; const copy = {};
-          Object.keys(o).forEach((k) => {
-            const nk = fixMojibake(k); if (nk !== k) { changed = true; wasMoji[nk] = true; }
-            if (copy[nk] === undefined) copy[nk] = o[k];
-            else { const ta = (o[k] && o[k].at) || o[k] || 0, tb = (copy[nk] && copy[nk].at) || copy[nk] || 0; if (ta > tb) copy[nk] = o[k]; }
-          });
-          state[m] = copy;
-        });
-        // 3. fusion des variantes : un titre touché par l'encodage rejoint son jumeau propre (préfixe normalisé commun)
         const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
-        const seenTitles = Object.keys(state.seenMap || {});
-        seenTitles.forEach((t) => {
-          if (!wasMoji[t]) return;
-          const nt = norm(t); if (nt.length < 8) return;
-          const jumeau = seenTitles.find((x) => x !== t && !wasMoji[x] && (norm(x).includes(nt.slice(0, 10)) || nt.includes(norm(x).slice(0, 10))));
-          if (!jumeau) return;
-          maps.forEach((m) => { const o = state[m] || {}; if (o[t] !== undefined) { if (o[jumeau] === undefined || ((o[t] && o[t].at) || o[t] || 0) > ((o[jumeau] && o[jumeau].at) || o[jumeau] || 0)) o[jumeau] = o[t]; delete o[t]; changed = true; } });
+        const gnorm = (s) => norm(String(s).replace(/ï¿½|\uFFFD/g, "e")); // joker : le caractère perdu vaut « e » (é/è)
+        // 1. FUSION D'ABORD : familles = clés dont les normes partagent un préfixe, ou dont le préfixe de l'une est inclus dans l'autre (au moins une corrompue)
+        maps.forEach((m) => {
+          const o = state[m] || {};
+          const keys = Object.keys(o);
+          const parent = {}; keys.forEach((k) => { parent[k] = k; });
+          const find = (k) => { while (parent[k] !== k) k = parent[k]; return k; };
+          const uni = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) { parent[rb] = ra; changed = true; } };
+          for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
+            const a = keys[i], b = keys[j];
+            if (!MOJI.test(a) && !MOJI.test(b)) continue;
+            const na = gnorm(a), nb = gnorm(b);
+            const pa = na.slice(0, 10), pb = nb.slice(0, 10);
+            if (pa && pb && (pa === pb || nb.includes(pa) || na.includes(pb))) uni(a, b);
+          }
+          const familles = {};
+          keys.forEach((k) => { const r = find(k); (familles[r] = familles[r] || []).push(k); });
+          Object.values(familles).forEach((g) => {
+            if (g.length < 2) return;
+            const keep = g.find((k) => !MOJI.test(k)) || g[0];
+            g.forEach((k) => {
+              if (k === keep) return;
+              const ka = (o[k] && o[k].at) || o[k] || 0, kb = (o[keep] && o[keep].at) || o[keep] || 0;
+              if (o[keep] === undefined || ka > kb) o[keep] = o[k];
+              delete o[k]; changed = true;
+            });
+            if (MOJI.test(keep)) { const nk = fixMojibake(keep); if (nk !== keep) { if (o[nk] === undefined) o[nk] = o[keep]; else { const ta = (o[keep] && o[keep].at) || o[keep] || 0, tb = (o[nk] && o[nk].at) || o[nk] || 0; if (ta > tb) o[nk] = o[keep]; } delete o[keep]; changed = true; } }
+          });
         });
-        // 4. nettoyage du poolSeen local
-        try {
-          const ps = JSON.parse(localStorage.getItem("findeur-pool-seen") || "[]") || [];
-          const fixed = []; ps.forEach((t) => { const ft = fixMojibake(t); if (ft !== t) changed = true; if (!fixed.includes(ft)) fixed.push(ft); });
-          localStorage.setItem("findeur-pool-seen", JSON.stringify(fixed));
-        } catch (e) {}
+        // 2. PUIS RÉPARATION des clés restantes et des textes
+        maps.forEach((m) => {
+          const o = state[m] || {};
+          Object.keys(o).forEach((k) => {
+            const nk = fixMojibake(k); if (nk === k) return;
+            if (o[nk] === undefined) o[nk] = o[k];
+            else { const ta = (o[k] && o[k].at) || o[k] || 0, tb = (o[nk] && o[nk].at) || o[nk] || 0; if (ta > tb) o[nk] = o[k]; }
+            delete o[k]; changed = true;
+          });
+        });
+        Object.values(state.comments || {}).forEach((c) => { if (c && c.text) { const nt = fixMojibake(c.text); if (nt !== c.text) { c.text = nt; changed = true; } } });
+        // 3. poolSeen local + recalcul des vus
+        try { const ps = JSON.parse(localStorage.getItem("findeur-pool-seen") || "[]") || []; const set = new Set(); const out = []; ps.forEach((t) => { const ft = fixMojibake(t); if (ft !== t) changed = true; if (!set.has(ft)) { set.add(ft); out.push(ft); } }); localStorage.setItem("findeur-pool-seen", JSON.stringify(out)); } catch (e) {}
+        if (changed) recomputeSeen();
         return changed;
       };
       if (purgeMojibake()) save();
@@ -568,6 +583,7 @@ type: "text/html"
         });
         state.comments = mergedC;
         recomputeSeen();
+        purgeMojibake(); // assainir ce que la fusion vient de réimporter (encodages corrompus du serveur)
         save();
       };
       const ghGetNotes = async () => {
