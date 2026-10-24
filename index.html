@@ -156,7 +156,7 @@
       ];
 
       const NOTE_LABELS = ["Vraiment pas aimé", "Bof", "Bien", "À mettre dans mes références"];
-      const PLATEFORMES = ["Netflix", "Prime Video", "Apple TV+", "VOD", "Sooner", "Arte", "YouTube", "Cinéma"];
+      const PLATEFORMES = ["Netflix", "Prime Video", "Apple TV Store", "Apple TV+", "Sooner", "Arte", "YouTube", "Cinéma"];
       const LS = "findeur-films-state";
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
@@ -235,12 +235,12 @@
       const IND_DELAY = 90 * 864e5; // rétention indisponibilité : 3 mois
       // critères communs de sélection (utilisés par les suggestions ET la liste des films déjà vus)
       const SELECTION_OK = (f) => {
-        const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Arte", "YouTube", "Cinéma"];
+        const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Apple TV Store", "Arte", "YouTube", "Cinéma"];
         const isWE = [5, 6, 0].includes(new Date().getDay());
         return f.p.some(p => ALLOWED.includes(p)) &&
           !(f.p.includes("Cinéma") && !isWE) &&
           (!state.filters.big || f.big) &&
-          (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p)));
+          (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p) || (p === "VOD" && state.filters.plateformes.includes("Apple TV Store"))));
       };
       // films déjà vus de l'ambiance courante : aucun filtre de plateforme appliqué (même actif)
       const seenInSelection = () => ALL_FILMS().filter((f) => f.g === state.genre && state.seen.includes(f.t));
@@ -1064,7 +1064,7 @@
         if (state.etape === 3 && !state.pick) {
           const b = budget();
           // Garantie de visionnage : chaque suggestion doit être disponible sur au moins une plateforme d'accès
-          const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Arte", "YouTube", "Cinéma"];
+          const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Apple TV Store", "Arte", "YouTube", "Cinéma"];
           // Films en salle : uniquement du vendredi au dimanche (préférence week-end du profil)
           const isWE = [5, 6, 0].includes(new Date().getDay());
           let results = ALL_FILMS().filter(f =>
@@ -1205,10 +1205,12 @@
       try { dispoCache = JSON.parse(localStorage.getItem(DISPO_KEY) || "{}") || {}; } catch (e) {}
       const saveDispoCache = () => { try { localStorage.setItem(DISPO_KEY, JSON.stringify(dispoCache)); } catch (e) {} };
       const dispoDay = () => new Date().toISOString().slice(0, 10);
-      // plateformes préférées (celles de l'app) : nom JustWatch/TMDB → libellé ; les plateformes ABSENTES de cette table ne sont PAS affichées
-      const DISPO_PREF = { "Netflix": "Netflix", "Amazon Prime Video": "Prime Video", "Apple TV+": "Apple TV+", "Apple TV": "Apple TV+", "YouTube": "YouTube", "Arte": "Arte", "ARTE": "Arte", "Sooner": "Sooner" };
-      // boutiques préférées pour la location/achat VOD (nom JustWatch/TMDB → libellé) : la VOD est DÉTAILLÉE par plateforme, jamais regroupée
-      const DISPO_RENT_PREF = { "Apple iTunes": "Apple TV Store", "Apple TV": "Apple TV Store", "Amazon Video": "Amazon Video", "Amazon Prime Video": "Amazon Video", "YouTube": "YouTube", "Canal VOD": "Canal VOD" };
+      // plateformes préférées (liste corrigée par Norbert, oct. 2026) : Netflix, Prime Video, Apple TV Store, Apple TV+, Sooner, Arte, YouTube
+      // nom JustWatch/TMDB → libellé ; les plateformes ABSENTES de cette table ne sont PAS affichées
+      const DISPO_PREF = { "Netflix": "Netflix", "Amazon Prime Video": "Prime Video", "Apple TV+": "Apple TV+", "YouTube": "YouTube", "Arte": "Arte", "ARTE": "Arte", "Sooner": "Sooner" };
+      // boutiques préférées pour la location/achat VOD : Apple TV Store (boutique de référence), Prime Video et YouTube ; Canal VOD retiré de la liste (oct. 2026)
+      // la VOD est DÉTAILLÉE par plateforme, jamais regroupée
+      const DISPO_RENT_PREF = { "Apple iTunes": "Apple TV Store", "Apple TV": "Apple TV Store", "Amazon Video": "Prime Video", "Amazon Prime Video": "Prime Video", "YouTube": "YouTube" };
       const JW_LINK = (t) => "https://www.justwatch.com/fr/recherche?q=" + encodeURIComponent(t);
       let tmdbIdCache = {};
       // titres de l'app ≠ titres TMDB : retirer les suffixes entre parenthèses (« (re-voir) », « (ciné-concert) », titres alternatifs…)
