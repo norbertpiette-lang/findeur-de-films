@@ -218,8 +218,9 @@
 
       let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
-      // film marqué « vu » : il reste visible dans les suggestions ET la liste « À voir » pendant 30 minutes
-      // (fenêtre pour le noter ou annuler un « vu » accidentel), puis en disparaît définitivement et automatiquement
+      // statuts exclusifs : un film marqué « vu » disparaît IMMÉDIATEMENT de la liste « À voir » (jamais Vu + À voir en même temps)
+      // il reste 30 min dans les suggestions (fenêtre pour le noter), et ses données « À voir » sont conservées 30 min
+      // en tampon : si « Pas vu » est annulé dans ce délai, le film revient dans « À voir » (désactivation d'un « vu » accidentel)
       const PICK_DELAY = 30 * 60 * 1000;
       const pickSeenRecent = (t) => { const at = state.seenMap?.[t]; return state.seen.includes(t) && at != null && (Date.now() - at) < PICK_DELAY; };
       const prunePicks = () => {
@@ -514,7 +515,7 @@
       window.setGenre = (g) => { state.genre = g; state.etape = 2; window.__jumpTop = true; save(); render(); };
       window.setEnvie = (e) => { state.envie = e; state.etape = 3; window.__jumpTop = true; save(); render(); };
       window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t) || (poolCache || []).find(f => f.t === t) || getAdopted().find(f => f.t === t); window.__jumpTop = true; save(); render(); loadPickInfo(); };
-      window.confirmPick = () => { if (state.pick) { state.pickHistory[state.pick.t] = state.pickHistory[state.pick.t] || Date.now(); if (isPoolFilm(state.pick.t)) adopt(state.pick.t); } state.pick = null; window.__jumpTop = true; save(); schedulePush(); render(); };
+      window.confirmPick = () => { if (state.pick) { if (!state.seen.includes(state.pick.t)) state.pickHistory[state.pick.t] = state.pickHistory[state.pick.t] || Date.now(); if (isPoolFilm(state.pick.t)) adopt(state.pick.t); } state.pick = null; window.__jumpTop = true; save(); schedulePush(); render(); };
       window.declinePick = () => { state.pick = null; window.__jumpTop = true; save(); render(); };
       const pickInfoCache = {};
       const loadPickInfo = async () => {
@@ -679,7 +680,7 @@
       const pendingPicks = () => {
         const merged = new Map();
         Object.keys(state.pickHistory || {})
-          .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t)) && !state.ratings[t])
+          .filter((t) => !state.seen.includes(t) && !state.ratings[t])
           .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0))
           .forEach((t) => {
             const k = normTitle(t);
@@ -781,7 +782,7 @@
       const picksInSelection = () => pendingPicks().filter((t) => { const f = findFilm(t); return !!f && f.g === state.genre; });
       // liste brute « À voir » (sans fusion, doublons inclus) — compteur du bouton de la première page
       const pendingAll = () => Object.keys(state.pickHistory || {})
-        .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t)) && !state.ratings[t])
+        .filter((t) => !state.seen.includes(t) && !state.ratings[t])
         .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
       const maybeRefreshSeen = () => { if (window.__seenOpen) openSeenModal(); if (window.__picksOpen) openPicksModal(); };
       window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
@@ -791,7 +792,7 @@
         // mode « all » : liste brute de tous les films « À voir » — aucun filtre, aucune fusion, doublons conservés
         if (mode === "all") {
           const raw = Object.keys(state.pickHistory || {})
-            .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t)) && !state.ratings[t])
+            .filter((t) => !state.seen.includes(t) && !state.ratings[t])
             .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
           // aucun filtre : les titres hors catalogue sont affichés aussi (carte simplifiée)
           const cardsAll = raw.map((t, i) => {
