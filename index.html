@@ -420,7 +420,7 @@
                 ? `<button class="btn" title="Retirer ce film de ma liste « À voir »" onclick="removePick('${escAttr(f.t)}')">❌ Retirer de « À voir »</button>`
                 : (state.pickHistory[f.t]
                   ? `<button class="btn" style="opacity:.65;cursor:default" title="Ce film est déjà dans ta liste « À voir »">✔️ Dans la liste à voir</button>`
-                  : `<button class="btn primary" onclick="setPick('${escAttr(f.t)}')">🎬 À voir — c'est mon choix</button>`))}
+                  : `<button class="btn primary" onclick="setPick('${escAttr(f.t)}')">🎬 À voir</button>`))}
               ${vu ? "" : `<button class="btn ${isIndispo(f.t) ? "vu-on" : ""}" onclick="toggleIndispo('${escAttr(f.t)}')" title="${isIndispo(f.t) ? "Film masqué des suggestions pour 3 mois — clique pour le réafficher" : "Je ne trouve pas ce film : le masquer des suggestions pendant 3 mois"}">${isIndispo(f.t) ? "🚫 Indisponible (annuler)" : "🚫 Indisponible"}</button>`}
             </div>
             ${vu ? stars(f) : ""}
