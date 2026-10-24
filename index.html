@@ -672,7 +672,7 @@
         const merged = new Map();
         Object.keys(state.pickHistory || {})
           .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t) || pickRatedRecent(t)) && (!state.ratings[t] || pickRatedRecent(t)))
-          .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0))
+          .sort((a, b) => pickProba(b) - pickProba(a) || (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0))
           .forEach((t) => {
             const k = normTitle(t);
             if (!merged.has(k)) merged.set(k, t);
@@ -771,11 +771,13 @@
       };
       // films « À voir » de l'ambiance courante (compteur du bouton) ; le reste est listé à part dans la fenêtre
       const findFilm = (t) => FILMS.find((x) => x.t === t) || (poolCache || []).find((x) => x.t === t) || getAdopted().find((x) => x.t === t) || null;
+      // probabilité de plaire d'un titre « À voir » — sert au tri des listes (les films hors catalogue, sans fiche, partent en fin de liste)
+      const pickProba = (t) => { const f = findFilm(t); return f ? proba(f) : -1; };
       const picksInSelection = () => pendingPicks().filter((t) => { const f = findFilm(t); return !!f && f.g === state.genre; });
       // liste brute « À voir » (sans fusion, doublons inclus) — compteur du bouton de la première page
       const pendingAll = () => Object.keys(state.pickHistory || {})
         .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t) || pickRatedRecent(t)) && (!state.ratings[t] || pickRatedRecent(t)))
-        .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
+        .sort((a, b) => pickProba(b) - pickProba(a) || (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
       const maybeRefreshSeen = () => { if (window.__seenOpen) openSeenModal(); if (window.__picksOpen) openPicksModal(); };
       window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
       window.openPicksModal = (mode) => {
@@ -785,7 +787,7 @@
         if (mode === "all") {
           const raw = Object.keys(state.pickHistory || {})
             .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t) || pickRatedRecent(t)) && (!state.ratings[t] || pickRatedRecent(t)))
-            .sort((a, b) => (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
+            .sort((a, b) => pickProba(b) - pickProba(a) || (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
           // aucun filtre : les titres hors catalogue sont affichés aussi (carte simplifiée)
           const cardsAll = raw.map((t, i) => {
             const f = findFilm(t); // chercher partout : catalogue, pool du jour et stock adopté (sinon un film du pool apparaîtrait à tort « hors catalogue »)
@@ -800,7 +802,7 @@
             <div class="mroot" onclick="if(event.target===this) closePicksModal()">
               <div class="mbox" style="width:min(720px,96vw)">
                 <h2 style="margin:0 0 4px">🎬 Tous mes films « À voir » (${raw.length})</h2>
-                <p class="range" style="margin:0 0 12px">Liste complète sans filtre — doublons inclus, du plus récent au plus ancien. Marque-les « Vu » ou retire-les pour nettoyer la liste.</p>
+                <p class="range" style="margin:0 0 12px">Liste complète sans filtre — doublons inclus, classés par % de chances de te plaire (du plus fort au plus faible). Marque-les « Vu » ou retire-les pour nettoyer la liste.</p>
                 <div style="display:flex;flex-direction:column;gap:12px">
                   ${raw.length
                     ? cardsAll
@@ -833,7 +835,7 @@
           <div class="mroot" onclick="if(event.target===this) closePicksModal()">
             <div class="mbox" style="width:min(720px,96vw)">
               <h2 style="margin:0 0 4px">🎬 Mes films « À voir » — ${esc(genreLabel)} (${sel.length})</h2>
-              <p class="range" style="margin:0 0 12px">Films choisis lors de précédentes recommandations dans cette ambiance, du plus récent au plus ancien — les autres ambiances sont accessibles depuis le bouton « À voir » de la première page. Marque-les « Vu » une fois regardés — ils quittent alors cette liste et enrichissent ton profil.</p>
+              <p class="range" style="margin:0 0 12px">Films choisis lors de précédentes recommandations dans cette ambiance, classés par % de chances de te plaire (du plus fort au plus faible) — les autres ambiances sont accessibles depuis le bouton « À voir » de la première page. Marque-les « Vu » une fois regardés — ils quittent alors cette liste et enrichissent ton profil.</p>
               <div style="display:flex;flex-direction:column;gap:12px">
                 ${sel.length
                   ? listCards(selTitres, 950)
