@@ -993,7 +993,7 @@
 
       const render = () => {
         const app = document.getElementById("app");
-        let h = `<h1>🎬 Findeur de Films</h1>
+        let h = `<h1><a href="#" onclick="reset();return false" title="Recommencer depuis le début" style="text-decoration:none;color:inherit">🎬 Findeur de Films</a></h1>
           <p class="sub">${esc(profilTxt || "Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.")}</p>
           <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button> <button class="btn primary" onclick="openPicksModal('all')" title="Tous mes films « À voir », sans aucun filtre">🎬 À voir (${pendingAll().length})</button></p>`;
 
@@ -1063,8 +1063,7 @@
           });
           results = allResults;
           h += `<div class="row"><h2>4️⃣ ${results.length} suggestion${results.length > 1 ? "s" : ""} · ${GENRES.find(g => g.id === state.genre).label}</h2>
-            <span class="range">${state.noTime ? "🕐 Sans contrainte horaire — toutes durées acceptées" : `⏰ séance ${fmtH(state.debutMin)} → fin ${fmtH(state.coucheMin)} · ${fmtDur(b)} max`}</span>
-            <button onclick="reset()" title="Recommencer depuis le début" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 4px">🏠</button></div>
+            <span class="range">${state.noTime ? "🕐 Sans contrainte horaire — toutes durées acceptées" : `⏰ séance ${fmtH(state.debutMin)} → fin ${fmtH(state.coucheMin)} · ${fmtDur(b)} max`}</span></div>
             <div class="filters">
               <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
               ${PLATEFORMES.map(p => `<label><input type="checkbox" ${state.filters.plateformes.includes(p) ? "checked" : ""} onchange="togglePlat('${p}')"> ${p}</label>`).join("")}
