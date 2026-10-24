@@ -1210,9 +1210,10 @@
       const JW_LINK = (t) => "https://www.justwatch.com/fr/recherche?q=" + encodeURIComponent(t);
       let tmdbIdCache = {};
       // titres de l'app ≠ titres TMDB : retirer les suffixes entre parenthèses (« (re-voir) », « (ciné-concert) », titres alternatifs…)
-      const cleanTitle = (t) => String(t).replace(/\s*\([^)]*\)\s*$/, "").trim();
+      // (ne pas confondre avec le cleanTitle de la saisie « J'ai vu un film », qui ne retire que « (film) »/« (movie) »)
+      const cleanSearchTitle = (t) => String(t).replace(/\s*\([^)]*\)\s*$/, "").trim();
       const getTmdbId = async (t, y) => {
-        const q = cleanTitle(t);
+        const q = cleanSearchTitle(t);
         if (q in tmdbIdCache) return tmdbIdCache[q];
         const key = getTmdbKey(); if (!key) return null;
         try {
