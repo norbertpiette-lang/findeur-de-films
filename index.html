@@ -54,7 +54,7 @@
       .sugg:hover { background: #334155; }
       .sugg small { display: block; color: #94a3b8; font-size: .72rem; }
       .picked { border: 1px solid #059669; background: #064e3b; border-radius: 8px; padding: 6px 10px; margin-top: 8px; color: #6ee7b7; font-size: .85rem; }
-      .poster { width: 72px; min-height: 104px; border-radius: 6px; overflow: hidden; background: #1e293b; border: 1px solid #334155; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1.4rem; }
+      .poster { width: 72px; height: 108px; border-radius: 6px; overflow: hidden; background: #1e293b; border: 1px solid #334155; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1.4rem; } /* 2:3 — proportion affiche cinéma, aucun recadrage */
       .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .starlabel { font-size: .72rem; color: #94a3b8; }
       .backlink { background: none; border: none; color: #64748b; font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; }
@@ -437,7 +437,7 @@
               ${f.g === "comedie" ? '<div><span class="chip green">VF disponible (exigée)</span></div>' : ""}
               <div class="dispo-live" data-title="${esc(f.t)}" data-year="${f.y || ""}">📡 Vérification des plateformes…</div>
             </div>
-            <div class="poster" data-title="${esc(f.t)}" id="poster-${i}" style="height:auto;align-self:stretch">🎞️</div>
+            <div class="poster" data-title="${esc(f.t)}" id="poster-${i}" style="align-self:flex-start">🎞️</div>
           </div>
           <div class="row">
             <div>
@@ -1088,7 +1088,7 @@
           const reperes = ALL_FILMS().filter((x) => x.g === f.g && state.seen.includes(x.t) && ((state.ratings[x.t] || {}).v || 0) >= 2).map((x) => x.t).slice(0, 3);
           h += `<div class="pickbox">
             <div style="display:flex;flex-direction:row;gap:16px;align-items:flex-start;flex-wrap:wrap">
-              <div class="poster" data-title="${esc(f.t)}" id="poster-pick" style="width:140px;align-self:flex-start">🎞️</div>
+              <div class="poster" data-title="${esc(f.t)}" id="poster-pick" style="width:140px;height:210px;align-self:flex-start">🎞️</div>
               <div style="flex:1;min-width:240px">
                 <div style="font-size:1.8rem">🍿</div>
                 <h2 style="margin:4px 0">${esc(f.t)}</h2>
