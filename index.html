@@ -58,9 +58,6 @@
       .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .starlabel { font-size: .72rem; color: #94a3b8; }
       .backlink { background: none; border: none; color: #64748b; font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; }
-      .filters { display: flex; gap: 14px; flex-wrap: wrap; font-size: .8rem; align-items: center; color: #cbd5e1; }
-      .filters label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
-      .filters input { accent-color: #10b981; }
       .slot { border: 1px solid #1e293b; background: #0f172a; border-radius: 12px; padding: 14px; }
       .slot p { margin: 0 0 8px; font-size: .9rem; font-weight: 500; }
       .slot .btn { margin: 2px; }
@@ -156,7 +153,6 @@
       ];
 
       const NOTE_LABELS = ["Vraiment pas aimé", "Bof", "Bien", "À mettre dans mes références"];
-      const PLATEFORMES = ["Netflix", "Prime Video", "Apple TV Store", "Apple TV+", "Sooner", "Arte", "YouTube", "Cinéma"];
       const LS = "findeur-films-state";
       const SYNC = { owner: "norbertpiette-lang", dataRepo: "findeur-films-data", branch: "main", path: "notes.json", tokenKey: "findeur-gh-token" };
       let syncStatus = "🔵 Non synchronisé";
@@ -238,11 +234,9 @@
         const ALLOWED = ["Netflix", "Prime Video", "Apple TV+", "Sooner", "VOD", "Apple TV Store", "Arte", "YouTube", "Cinéma"];
         const isWE = [5, 6, 0].includes(new Date().getDay());
         return f.p.some(p => ALLOWED.includes(p)) &&
-          !(f.p.includes("Cinéma") && !isWE) &&
-          (!state.filters.big || f.big) &&
-          (state.filters.plateformes.length === 0 || f.p.some(p => state.filters.plateformes.includes(p) || (p === "VOD" && state.filters.plateformes.includes("Apple TV Store"))));
+          !(f.p.includes("Cinéma") && !isWE);
       };
-      // films déjà vus de l'ambiance courante : aucun filtre de plateforme appliqué (même actif)
+      // films déjà vus de l'ambiance courante
       const seenInSelection = () => ALL_FILMS().filter((f) => f.g === state.genre && state.seen.includes(f.t));
       const isIndispo = (t) => (state.indispo?.[t] || 0) > 0 && Date.now() - state.indispo[t] < IND_DELAY;
       // migration ancien format : seen [] → seenMap avec horodatage 0
@@ -566,13 +560,6 @@
       };
       window.setRating = (t, v) => { state.ratings[t] = { v, at: Date.now() }; if (isPoolFilm(t)) adopt(t); save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); };
       window.setPickRating = (v) => { state.ratings[state.pick.t] = { v, at: Date.now() }; save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); };
-      window.toggleBig = () => { state.filters.big = !state.filters.big; save(); render(); };
-      window.togglePlat = (p) => {
-        state.filters.plateformes = state.filters.plateformes.includes(p)
-          ? state.filters.plateformes.filter(x => x !== p)
-          : [...state.filters.plateformes, p];
-        save(); render();
-      };
       window.toggleIndispo = (t) => {
         if (isIndispo(t)) delete state.indispo[t];
         else state.indispo[t] = Date.now();
@@ -1085,10 +1072,6 @@
           results = allResults;
           h += `<div class="row"><h2>4️⃣ ${results.length} suggestion${results.length > 1 ? "s" : ""} · ${GENRES.find(g => g.id === state.genre).label}</h2>
             <span class="range">${state.noTime ? "🕐 Sans contrainte horaire — toutes durées acceptées" : `⏰ séance ${fmtH(state.debutMin)} → fin ${fmtH(state.coucheMin)} · ${fmtDur(b)} max`}</span></div>
-            <div class="filters">
-              <label><input type="checkbox" ${state.filters.big ? "checked" : ""} onchange="toggleBig()"> 📽️ grand écran uniquement</label>
-              ${PLATEFORMES.map(p => `<label><input type="checkbox" ${state.filters.plateformes.includes(p) ? "checked" : ""} onchange="togglePlat('${p}')"> ${p}</label>`).join("")}
-            </div>
             <p class="range" style="margin-top:6px"><button class="btn" onclick="openSeenModal()">👁️ Films déjà vus (${seenInSelection().length})</button> <button class="btn" onclick="openPicksModal()">🎬 À voir (${picksInSelection().length})</button></p>
             <p class="range" style="margin-top:6px">${isWE
               ? "🍿 C'est le week-end : les sorties en salle (Pathé Palace Opéra · Grand Rex · Max Linder) sont incluses."
