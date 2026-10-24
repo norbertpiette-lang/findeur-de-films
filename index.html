@@ -73,6 +73,7 @@
       .sessionline { margin: 4px 0; }
       .range { color: #94a3b8; font-size: .78rem; }
       .dispo-live { font-size: .78rem; color: #cbd5e1; margin-top: 4px; line-height: 1.7; }
+      .prov-logo { height: 16px; background: #f1f5f9; border-radius: 4px; padding: 2px 5px; margin: 2px 6px 2px 0; vertical-align: middle; }
     </style>
   </head>
   <body>
@@ -434,7 +435,7 @@
                 <div class="gauge"><div class="gauge-fill" style="width:${proba(f)}%"></div></div>
               </div>`}
               ${f.g === "comedie" ? '<div><span class="chip green">VF disponible (exigée)</span></div>' : ""}
-              <div class="dispo-live" data-title="${esc(f.t)}" data-year="${f.y || ""}">📡 Disponibilité du jour (JustWatch France) : vérification…</div>
+              <div class="dispo-live" data-title="${esc(f.t)}" data-year="${f.y || ""}">📡 Vérification des plateformes…</div>
             </div>
             <div class="poster" data-title="${esc(f.t)}" id="poster-${i}" style="height:auto;align-self:stretch">🎞️</div>
           </div>
@@ -1106,7 +1107,7 @@
               ${f.p.length > 0 ? f.p.map(p => `<span class="chip green">${p.includes("VOD") ? "💳 Location/achat VOD" : p === "Cinéma" ? "🎟️ Cinéma (Pathé Palace Opéra · Grand Rex · Max Linder)" : p === "Sooner" ? "🎬 Sooner" : p === "Arte" ? "🎨 Arte (replay gratuit)" : p === "YouTube" ? "▶️ YouTube (location/achat)" : "📺 " + esc(p)}</span>`).join("") +
                 (f.g === "comedie" ? '<span class="chip green">VF requise — vérifie la piste VF</span>' : "")
                 : `<p class="none">⚠️ Aucune plateforme identifiée — vérifie sur JustWatch France.</p>`}
-              <div class="dispo-live" data-title="${esc(f.t)}" data-year="${f.y || ""}" style="margin-top:8px">📡 Disponibilité du jour (JustWatch France) : vérification…</div>
+              <div class="dispo-live" data-title="${esc(f.t)}" data-year="${f.y || ""}" style="margin-top:8px">📡 Vérification des plateformes…</div>
             </div>
             ${f.big ? '<div style="margin-top:8px"><span class="chip amber">🖥️ Mérite le vidéoprojecteur</span></div>' : ""}
             <p class="warn" style="margin-top:10px">⚠️ Confirme la disponibilité sur l'app de la plateforme (fiches VOD parfois fantômes).${f.g === "comedie" ? " Vérifie la VF." : ""} Une fois le film vu, note-le via « ➕ J'ai vu un film ».</p>
@@ -1221,17 +1222,17 @@
       const fetchDispo = async (f) => {
         const today = dispoDay();
         const c = dispoCache[f.t];
-        if (c && c.checkedAt === today) return c; // déjà vérifié aujourd'hui : aucune requête
+        if (c && c.checkedAt === today && c.fmt === 2) return c; // déjà vérifié aujourd'hui au format logos : aucune requête (les anciens caches texte sont re-vérifiés une fois)
         const key = getTmdbKey(); if (!key) return null;
         const id = await getTmdbId(f.t, f.y);
         if (id === null) return null;
-        if (id < 0) { const miss = { checkedAt: today, notFound: true }; dispoCache[f.t] = miss; saveDispoCache(); return miss; }
+        if (id < 0) { const miss = { checkedAt: today, notFound: true, fmt: 2 }; dispoCache[f.t] = miss; saveDispoCache(); return miss; }
         try {
           const r = await fetch(`https://api.themoviedb.org/3/movie/${id}/watch/providers?api_key=${key}&watch_region=FR`);
           if (!r.ok) return null;
           const j = await r.json();
           const fr = ((j.results || {}).FR) || {};
-          const entry = { checkedAt: today, flat: (fr.flatrate || []).map((x) => x.provider_name), free: (fr.free || []).map((x) => x.provider_name), rent: (fr.rent || []).map((x) => x.provider_name), buy: (fr.buy || []).map((x) => x.provider_name) };
+          const entry = { checkedAt: today, fmt: 2, flat: (fr.flatrate || []).map((x) => ({ n: x.provider_name, l: x.logo_path })), free: (fr.free || []).map((x) => ({ n: x.provider_name, l: x.logo_path })), rent: (fr.rent || []).map((x) => ({ n: x.provider_name, l: x.logo_path })), buy: (fr.buy || []).map((x) => ({ n: x.provider_name, l: x.logo_path })) };
           dispoCache[f.t] = entry; saveDispoCache();
           return entry;
         } catch (e) { return null; }
@@ -1239,30 +1240,35 @@
       const dispoHTML = (c, f) => {
         if (!c) return `<span class="chip" style="opacity:.65">📡 Non vérifié (hors ligne ou sans clé TMDB)</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
         if (c.notFound) return `<span class="chip" style="opacity:.65">📡 Non vérifiable automatiquement (introuvable dans la base du jour)</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
-        const done = new Set(); const chips = [];
-        // abonnements et accès gratuit : uniquement les plateformes préférées — les autres ne sont pas affichées
-        (c.flat || []).concat(c.free || []).forEach((n) => {
+        // logos des plateformes préférées (image TMDB, données JustWatch) — texte de secours si logo manquant
+        const logo = (lbl, l, sfx) => l ? `<img class="prov-logo" src="https://image.tmdb.org/t/p/w45${l}" alt="${esc(lbl)}" title="${esc(lbl + sfx)}" loading="lazy" />` : `<span class="chip green">${esc(lbl)}${esc(sfx)}</span>`;
+        const out = [];
+        // abonnements et accès gratuit : logos des plateformes préférées uniquement — les autres ne sont pas affichées
+        const done = new Set();
+        (c.flat || []).concat(c.free || []).forEach((x) => {
+          const n = x && x.n ? x.n : x, l = x && x.l ? x.l : null;
           if (done.has(n)) return;
           const lbl = DISPO_PREF[n];
           if (!lbl) return; // plateforme non préférée : masquée
           done.add(n);
-          chips.push(`<span class="chip green">📺 ${esc(lbl)}${(c.free || []).includes(n) ? " (gratuit)" : " (abonnement)"}</span>`);
+          out.push(logo(lbl, l, (c.free || []).some((y) => (y && y.n ? y.n : y) === n) ? " (gratuit)" : " (abonnement)"));
         });
-        // location/achat VOD : détail par boutique préférée, jamais regroupée
+        // location/achat VOD : logos des boutiques préférées, détaillées, jamais regroupées
         const doneV = new Set();
-        (c.rent || []).concat(c.buy || []).forEach((n) => {
+        (c.rent || []).concat(c.buy || []).forEach((x) => {
+          const n = x && x.n ? x.n : x, l = x && x.l ? x.l : null;
           if (doneV.has(n)) return;
           const lbl = DISPO_RENT_PREF[n];
           if (!lbl) return; // boutique non préférée : masquée
           doneV.add(n);
-          chips.push(`<span class="chip green">💳 ${esc(lbl)} — location/achat VOD</span>`);
+          out.push(logo(lbl + " — location/achat VOD", l, ""));
         });
-        if (f && f.p && f.p.includes("Cinéma")) chips.push(`<span class="chip green">🎟️ En salle — séances du jour : Pathé Palace Opéra · Grand Rex · Max Linder</span>`);
-        if (!chips.length) {
+        if (f && f.p && f.p.includes("Cinéma")) out.push(`<span class="chip green">🎟️ En salle — séances du jour : Pathé Palace Opéra · Grand Rex · Max Linder</span>`);
+        if (!out.length) {
           const offres = (c.flat || []).length + (c.free || []).length + (c.rent || []).length + (c.buy || []).length;
-          return `<span class="chip" style="color:#fb7185;border-color:#b45309">⚠️ ${offres > 0 ? "Aujourd'hui : disponible, mais sur aucune de tes plateformes préférées" : "Aucune offre en France aujourd'hui"}</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
+          return `<span class="chip" style="color:#fb7185;border-color:#b45309">⚠️ ${offres > 0 ? "Disponible aujourd'hui, mais sur aucune de tes plateformes préférées" : "Aucune offre en France aujourd'hui"}</span> <a class="backlink" href="${JW_LINK(f ? f.t : "")}" target="_blank">Vérifier sur JustWatch</a>`;
         }
-        return chips.join("");
+        return out.join(" ");
       };
       const loadDispo = async () => {
         const today = dispoDay();
@@ -1273,9 +1279,9 @@
           const t = el.dataset.title;
           if (!t) continue;
           const f = findFilm(t) || { t, y: Number(el.dataset.year) || undefined, p: [] };
-          const fresh = !!(dispoCache[t] && dispoCache[t].checkedAt === today); // déjà vérifié aujourd'hui → aucun appel réseau
+          const fresh = !!(dispoCache[t] && dispoCache[t].checkedAt === today && dispoCache[t].fmt === 2); // déjà vérifié aujourd'hui au format logos → aucun appel réseau
           const c = await fetchDispo(f);
-          el.innerHTML = `📡 Aujourd'hui (${today}) — JustWatch France : ${dispoHTML(c, f)}`;
+          el.innerHTML = dispoHTML(c, f); // logos des plateformes préférées, sans préfixe texte
           if (!fresh) await new Promise((r) => setTimeout(r, 250)); // re-vérifications décalées pour ménager l'API TMDB
         }
       };
