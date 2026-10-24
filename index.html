@@ -248,22 +248,25 @@
       const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} };
 
       // purge héritée des problèmes d'encodage (Ã©, ï¿½…) : répare les accents, fusionne les doublons, à chaque chargement
-      const MOJI = /Ã|ï¿½|\uFFFD|Â|ƒ/;
+      const MOJI = /Ã|ï¿½|\uFFFD|Â|ƒ|Ò©|©|Ò|¿|½|Æ|†|€|™/;
       const fixMojibake = (s) => {
         if (!MOJI.test(s)) return s;
-        let dec = s;
-        try { dec = new TextDecoder().decode(Uint8Array.from(s, (c) => c.charCodeAt(0))); } catch (e) {}
-        let out = (dec && dec !== s && !MOJI.test(dec) && !dec.includes("\uFFFD")) ? dec : s;
-        const pass = (x) => x.replace(/éƒ©/g, "é").replace(/ï¿½|\uFFFD/g, "é").replace(/Ã©/g, "é").replace(/Ã¨/g, "è").replace(/Ã¯/g, "ï").replace(/Ãª/g, "ê").replace(/Ã¢/g, "â").replace(/Ã¹/g, "ù").replace(/ƒ©/g, "é").replace(/Ã/g, "é").replace(/ƒ/g, "").replace(/Â/g, "");
-        out = pass(pass(out)); // deux passages : certaines séquences se reforment après le premier
-        return out;
+        // règles ciblées d'abord (ex. « cinÒ© » → « ciné ») : un décodage UTF-8 prématuré transformerait Ò© en caractère cyrillique irrécupérable
+        const pass = (x) => x.replace(/Ò©/g, "é").replace(/éƒ©/g, "é").replace(/ï¿½|\uFFFD/g, "é").replace(/Ã©/g, "é").replace(/Ã¨/g, "è").replace(/Ã¯/g, "ï").replace(/Ãª/g, "ê").replace(/Ã¢/g, "â").replace(/Ã¹/g, "ù").replace(/ƒ©/g, "é").replace(/Ã/g, "é").replace(/ƒ/g, "").replace(/Â/g, "");
+        let out = pass(pass(s)); // deux passages : certaines séquences se reforment après le premier
+        if (!MOJI.test(out) && !out.includes("\uFFFD")) return out; // réparé
+        // sinon : tentative de décodage UTF-8 sur l'original, puis re-passe
+        try { const dec = new TextDecoder().decode(Uint8Array.from(s, (c) => c.charCodeAt(0))); const fin = pass(pass(dec)); if (fin !== s && !MOJI.test(fin) && !fin.includes("\uFFFD")) return fin; } catch (e) {}
+        return out; // meilleur état atteint même imparfait — la fusion des familles éliminera la clé
       };
       const purgeMojibake = () => {
         let changed = false;
         const maps = ["ratings", "comments", "seenMap", "seenDel", "pickHistory"];
         const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
         const gnorm = (s) => norm(String(s).replace(/ï¿½|\uFFFD/g, "e")); // joker : le caractère perdu vaut « e » (é/è)
-        // 1. FUSION D'ABORD : familles = clés dont les normes partagent un préfixe, ou dont le préfixe de l'une est inclus dans l'autre (au moins une corrompue)
+        // 1. FUSION D'ABORD : familles = clés à norme identique (même film à accents près, ex. « Derriére »/« Derrière », même sans mojibake), ou préfixes compatibles si l'une est suspecte
+        const known = new Set(FILMS.map((f) => f.t));
+        try { getAdopted().forEach((f) => known.add(f.t)); (poolCache || []).forEach((f) => known.add(f.t)); getPoolSeen().forEach((t) => known.add(t)); } catch (e) {}
         maps.forEach((m) => {
           const o = state[m] || {};
           const keys = Object.keys(o);
@@ -272,16 +275,22 @@
           const uni = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) { parent[rb] = ra; changed = true; } };
           for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
             const a = keys[i], b = keys[j];
-            if (!MOJI.test(a) && !MOJI.test(b)) continue;
             const na = gnorm(a), nb = gnorm(b);
             const pa = na.slice(0, 10), pb = nb.slice(0, 10);
-            if (pa && pb && (pa === pb || nb.includes(pa) || na.includes(pb))) uni(a, b);
+            const squelette = (x) => x.replace(/[aeiouy]/g, "");
+            const memeFilm = na !== "" && na === nb; // norme identique : doublon d'accent, même sans caractère mojibake
+            const accentDeplace = na !== "" && pa === pb && squelette(na) === squelette(nb); // squelette consonnes identique : accent déplacé (í→é, è→é)
+            const prefixe = (MOJI.test(a) || MOJI.test(b)) && pa && pb && (pa === pb || nb.includes(pa) || na.includes(pb));
+            if (memeFilm || accentDeplace || prefixe) uni(a, b);
           }
           const familles = {};
           keys.forEach((k) => { const r = find(k); (familles[r] = familles[r] || []).push(k); });
           Object.values(familles).forEach((g) => {
             if (g.length < 2) return;
-            const keep = g.find((k) => !MOJI.test(k)) || g[0];
+            // clé canonique : d'abord un titre connu (catalogue/stock/pool), sinon une clé saine, sinon la plus récente
+            const at = (k) => (o[k] && o[k].at) || o[k] || 0;
+            const cleans = g.filter((k) => !MOJI.test(k));
+            const keep = g.find((k) => known.has(k)) || cleans.slice().sort((x, y) => at(y) - at(x))[0] || g.slice().sort((x, y) => at(y) - at(x))[0];
             g.forEach((k) => {
               if (k === keep) return;
               const ka = (o[k] && o[k].at) || o[k] || 0, kb = (o[keep] && o[keep].at) || o[keep] || 0;
@@ -302,6 +311,19 @@
           });
         });
         Object.values(state.comments || {}).forEach((c) => { if (c && c.text) { const nt = fixMojibake(c.text); if (nt !== c.text) { c.text = nt; changed = true; } } });
+        // 2bis. ALIGNEMENT vu/retiré : un film retiré sous une orthographe et « vu » sous une variante = un seul film (norme identique)
+        {
+          const sm = state.seenMap || {}, sd = state.seenDel || {};
+          Object.keys(sm).forEach((k1) => {
+            Object.keys(sd).forEach((k2) => {
+              if (k1 === k2) return; // même clé : recomputeSeen tranche déjà
+              const n1 = norm(k1), n2 = norm(k2);
+              if (!n1 || n1 !== n2) return;
+              if ((sd[k2] || 0) >= (sm[k1] || 0)) { delete sm[k1]; changed = true; } // le retrait est plus récent : pas vu
+              else { delete sd[k2]; changed = true; } // le vu est plus récent : retrait obsolète
+            });
+          });
+        }
         // 3. poolSeen local + recalcul des vus
         try { const ps = JSON.parse(localStorage.getItem("findeur-pool-seen") || "[]") || []; const set = new Set(); const out = []; ps.forEach((t) => { const ft = fixMojibake(t); if (ft !== t) changed = true; if (!set.has(ft)) { set.add(ft); out.push(ft); } }); localStorage.setItem("findeur-pool-seen", JSON.stringify(out)); } catch (e) {}
         if (changed) recomputeSeen();
