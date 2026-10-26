@@ -395,8 +395,23 @@
 
       // Probabilité que le film plaise, d'après le profil cinéphile
       const proba = (f) => {
-        // v90 : plus aucun score figé — le % ci-dessous est 100% algorithmique, calculé depuis tes notes, commentaires et ton envie du moment ; c'est exactement la même formule qui produit le % des e-mails hebdo, donc app et e-mail affichent le même chiffre — et il évolue avec ton profil
+        // v91 : poids hybrides — chaque signal (genre, tag, réalisateur) part d'un poids de départ (prior), corrigé par tes notes ; la correction grossit avec le nombre de notes portant ce signal (confiance pleine à 3 notes) ; c'est cette même formule qui produit le % des e-mails hebdo
+        const PRIORS = { "post-apo": 10, "huis clos": 8, "claustro": 8, "twist": 6, "boucle": 6, "IA": 6, "satire": 6, "absurde": 6, "faux doc": 6, "haneke": -20 };
+        const PRIOR_GENRE = { "horreur": 4 };
+        const FETICHES = ["Park Chan-wook", "Quentin Dupieux", "Safdie", "Denis Villeneuve", "Bong Joon-ho", "Gaspar Noé"];
+        const rated = FILMS.concat(getAdopted())
+          .map((src) => ({ src, rv: (state.ratings[src.t] || {}).v }))
+          .filter((x) => x.rv !== undefined && x.rv !== null)
+          .map((x) => ({ g: x.src.g, tags: x.src.tags || [], r: x.src.r, c: x.rv - 1.5 }));
+        const poids = (prior, sig) => {
+          if (!sig.length) return prior;
+          const m = sig.reduce((s, x) => s + x.c, 0) / sig.length;
+          return Math.max(-25, Math.min(15, prior + m * 6 * Math.min(1, sig.length / 3)));
+        };
         let p = 50;
+        p += poids(PRIOR_GENRE[f.g] || 0, rated.filter((x) => x.g && x.g === f.g));
+        f.tags.forEach((tg) => { p += poids(PRIORS[tg] || 0, rated.filter((x) => x.tags.includes(tg))); });
+        p += poids(FETICHES.some((d) => f.r.includes(d)) ? 8 : 0, rated.filter((x) => x.r === f.r));
         const want = {
           calme: f.big ? 15 : 0,
           nerveux: (f.tags.includes("tension") || f.tags.includes("course") || f.tags.includes("nocturne")) ? 15 : 0,
@@ -404,27 +419,8 @@
           coeur: (f.tags.includes("romance") || f.tags.includes("memoire") || f.tags.includes("famille") || f.tags.includes("pere-fille")) ? 15 : 0,
         };
         p += want[state.envie] || 0;
-        if (f.tags.includes("post-apo")) p += 10;
-        if (f.tags.includes("huis clos") || f.tags.includes("claustro")) p += 8;
-        if (f.tags.includes("twist") || f.tags.includes("boucle")) p += 6;
-        if (f.tags.includes("IA")) p += 6;
-        if (["Park Chan-wook", "Quentin Dupieux", "Safdie", "Denis Villeneuve", "Bong Joon-ho", "Gaspar Noé"].some((d) => f.r.includes(d))) p += 8;
-        if (f.tags.includes("satire") || f.tags.includes("absurde") || f.tags.includes("faux doc")) p += 6;
-        if (f.g === "horreur") p += 4;
-        if (f.tags.includes("haneke")) p -= 20;
         if (f.g === "comedie" && f.y < 1990) p -= 15;
         if (f.p.length > 1) p += 3;
-        // affinage profil (v90) : toutes tes notes comptent (catalogue + stock personnel) — proximité par genre, tags et réalisateur ; le % bouge à chaque nouvelle note
-        let aff = 0;
-        FILMS.concat(getAdopted()).forEach((src) => {
-          const rv = (state.ratings[src.t] || {}).v;
-          if (rv === undefined || rv === null) return;
-          const c = rv - 1.5;
-          if (src.g && src.g === f.g) aff += c * 3;
-          (src.tags || []).forEach((tg) => { if (f.tags.includes(tg)) aff += c * 2; });
-          if (src.r === f.r) aff += c * 3;
-        });
-        p += Math.max(-12, Math.min(12, Math.round(aff)));
         return Math.max(5, Math.min(95, Math.round(p)));
       };
 
