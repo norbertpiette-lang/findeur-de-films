@@ -225,7 +225,7 @@
         if (!l.some((x) => x.t === f.t)) { l.push(f); setAdopted(l); save(); schedulePush(); }
       };
 
-      let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
+      let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, pickDel:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
       // v92 : l'envie ne dure que la séance en cours — nouvelle visite = envie neutre (aucun bonus tant que tu n'as pas choisi) ; l'envie survit aux rechargements de l'onglet (sessionStorage) mais pas à sa fermeture
       try { state.envie = sessionStorage.getItem("findeur-envie") || null; } catch (e) { state.envie = null; }
@@ -268,6 +268,9 @@
         state.seen = Object.keys(state.seenMap || {}).filter((t) => (state.seenMap[t] || 0) > (state.seenDel?.[t] ?? -1));
       };
       recomputeSeen();
+      // v101 : retrait d'un pick « À voir » — la tombstone pickDel (horodatage du retrait) prime sur un pick plus ancien, aucune résurrection au chargement
+      state.pickDel = state.pickDel || {};
+      Object.keys(state.pickDel).forEach((t) => { if ((state.pickHistory[t] || 0) <= (state.pickDel[t] || 0)) delete state.pickHistory[t]; });
 
       const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} };
 
@@ -285,7 +288,7 @@
       };
       const purgeMojibake = () => {
         let changed = false;
-        const maps = ["ratings", "comments", "seenMap", "seenDel", "pickHistory"];
+        const maps = ["ratings", "comments", "seenMap", "seenDel", "pickHistory", "pickDel"];
         const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
         const gnorm = (s) => norm(String(s).replace(/ï¿½|\uFFFD/g, "e")); // joker : le caractère perdu vaut « e » (é/è)
         // 1. FUSION D'ABORD : familles = clés à norme identique (même film à accents près, ex. « Derriére »/« Derrière », même sans mojibake), ou préfixes compatibles si l'une est suspecte
@@ -376,7 +379,7 @@
       };
 
       // commentaire personnel : proposé à côté de la note partout où les étoiles apparaissent
-      window.removePick = (t) => { delete state.pickHistory[t]; save(); schedulePush(); render(); if (window.__picksOpen) openPicksModal(window.__picksMode || "selection"); };
+      window.removePick = (t) => { state.pickDel = state.pickDel || {}; state.pickDel[t] = Date.now(); delete state.pickHistory[t]; save(); schedulePush(); render(); if (window.__picksOpen) openPicksModal(window.__picksMode || "selection"); }; // v101 : retrait horodaté (tombstone pickDel), comme seenDel pour les films vus — sans cela, la fusion serveur ressuscitait le film retiré
       window.addComment = (t) => {
         const existing = (state.comments[t] || {}).text || "";
         const v = window.prompt("Ton commentaire sur ce film (ce qui t'a plu ou déplu : ambiance, rythme, réalisation… — il affinera ton profil cinéphile) :", existing);
@@ -613,6 +616,8 @@
         state.seenDel = mergeMap(remote.seenDel, state.seenDel);
         state.indispo = mergeMap(remote.indispo, state.indispo);
         state.pickHistory = mergeMap(remote.pickHistory, state.pickHistory);
+        state.pickDel = mergeMap(remote.pickDel, state.pickDel);
+        Object.keys(state.pickDel).forEach((t) => { if ((state.pickHistory[t] || 0) <= (state.pickDel[t] || 0)) delete state.pickHistory[t]; }); // v101 : un pick retiré (tombstone pickDel) ne doit pas revenir dans « À voir » via la fusion serveur ; un rajout plus récent prime sur le retrait
         prunePicks(); // anti-résurrection : un film vu depuis plus de 30 min ne doit pas revenir dans « À voir » via la fusion serveur
         // fusion du stock personnel adopté (union par titre)
         const mergedAdopted = (remote.adopted || []).slice();
@@ -630,16 +635,16 @@
       };
       const ghGetNotes = async () => {
         const res = await fetch(notesURL(), { headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json" } });
-        if (res.status === 404) return { ratings: {}, seen: [], seenMap: {}, seenDel: {}, sha: undefined };
+        if (res.status === 404) return { ratings: {}, seen: [], seenMap: {}, seenDel: {}, pickDel: {}, sha: undefined };
         if (!res.ok) throw new Error("HTTP " + res.status);
         const j = await res.json();
-        let notes = { ratings: {}, seen: [], seenMap: {}, seenDel: {} };
+        let notes = { ratings: {}, seen: [], seenMap: {}, seenDel: {}, pickDel: {} };
         try { notes = JSON.parse(utf8UnB64(j.content)) || notes; } catch (e) {}
         notes.sha = j.sha;
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = utf8B64(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, adopted: getAdopted(), catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
+        const content = utf8B64(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, pickDel: state.pickDel, adopted: getAdopted(), catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -1324,4 +1329,3 @@
     </script>
   </body>
 </html>
-
