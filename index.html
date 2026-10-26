@@ -225,6 +225,8 @@
 
       let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, ratings:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
+      // v92 : l'envie ne dure que la séance en cours — nouvelle visite = envie neutre (aucun bonus tant que tu n'as pas choisi) ; l'envie survit aux rechargements de l'onglet (sessionStorage) mais pas à sa fermeture
+      try { state.envie = sessionStorage.getItem("findeur-envie") || null; } catch (e) { state.envie = null; }
       // film marqué « vu » depuis la liste « À voir » : il y reste visible 30 minutes avec ses étoiles (fenêtre pour le noter sur place),
       // et la notation n'efface pas la fiche immédiatement : elle reste encore 30 minutes après les étoiles, le temps d'ajouter un commentaire (💬).
       // après ce délai la fiche sort automatiquement des listes « À voir » (et des suggestions). Si « Pas vu » est annulé à temps, le film redevient « À voir ».
@@ -523,7 +525,7 @@
       window.setNoTime = () => { state.noTime = true; state.debutMin = null; state.coucheMin = null; window.__jumpTop = true; save(); state.etape = 1; render(); };
       window.goEtape = (n) => { state.etape = n; window.__jumpTop = true; save(); render(); };
       window.setGenre = (g) => { state.genre = g; state.etape = 2; window.__jumpTop = true; save(); render(); };
-      window.setEnvie = (e) => { state.envie = e; state.etape = 3; window.__jumpTop = true; save(); render(); };
+      window.setEnvie = (e) => { state.envie = e; try { sessionStorage.setItem("findeur-envie", e); } catch (err) {} state.etape = 3; window.__jumpTop = true; save(); render(); };
       window.setPick = (t) => { state.pick = FILMS.find(f => f.t === t) || (poolCache || []).find(f => f.t === t) || getAdopted().find(f => f.t === t); window.__jumpTop = true; save(); render(); loadPickInfo(); };
       window.confirmPick = () => { if (state.pick) { if (!state.seen.includes(state.pick.t)) state.pickHistory[state.pick.t] = state.pickHistory[state.pick.t] || Date.now(); if (isPoolFilm(state.pick.t)) adopt(state.pick.t); } state.pick = null; window.__jumpTop = true; save(); schedulePush(); render(); };
       window.declinePick = () => { state.pick = null; window.__jumpTop = true; save(); render(); };
@@ -581,6 +583,7 @@
       };
       // retour à l'étape 1 : ne réinitialise QUE la séance en cours — les données durables (vus, notes, commentaires, liste « À voir ») restent en local et à l'écran
       window.reset = () => { window.__jumpTop = true; state = { ...state, etape: 0, debutMin: null, coucheMin: null, noTime: false, genre: null, envie: null, ambianceNote: "", envieNote: "", filters: { big: false, plateformes: [] }, pick: null };
+        try { sessionStorage.removeItem("findeur-envie"); } catch (err) {} // v92 : retour à l'étape 1 = envie neutre
         save(); render(); };
 
       // --- Synchronisation GitHub (dépôt privé findeur-films-data) ---
