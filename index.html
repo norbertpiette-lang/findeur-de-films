@@ -774,6 +774,7 @@
       window.closeSeenModal = () => { window.__seenOpen = false; document.getElementById("modal-root").innerHTML = ""; };
       window.openSeenModal = () => {
         window.__seenOpen = true;
+        const __syS = (document.querySelector(".mbox") || { scrollTop: 0 }).scrollTop; // v102 : position dans la liste avant rafraîchissement
         const vus = seenInSelection();
         const genreLabel = GENRES.find((g) => g.id === state.genre).label;
         document.getElementById("modal-root").innerHTML = `
@@ -793,6 +794,7 @@
           </div>`;
         loadPosters();
         loadDispo();
+        const __mbS = document.querySelector(".mbox"); if (__mbS) __mbS.scrollTop = __syS; // v102 : conserver la position dans la liste après une bascule vu/pas vu ou une correction de note
       };
       // films « À voir » de l'ambiance courante (compteur du bouton) ; le reste est listé à part dans la fenêtre
       const findFilm = (t) => FILMS.find((x) => x.t === t) || (poolCache || []).find((x) => x.t === t) || getAdopted().find((x) => x.t === t) || null;
@@ -807,9 +809,10 @@
       window.closePicksModal = () => { window.__picksOpen = false; document.getElementById("modal-root").innerHTML = ""; };
       window.openPicksModal = (mode) => {
         window.__picksOpen = true;
-        window.__picksMode = mode || "selection";
+        window.__picksMode = mode || window.__picksMode || "selection"; // v102 : un rafraîchissement interne (bascule vu/pas vu, notation) conserve le mode d'affichage courant au lieu de repasser en mode « sélection »
+        const __syP = (document.querySelector(".mbox") || { scrollTop: 0 }).scrollTop; // v102 : position dans la liste avant rafraîchissement
         // mode « all » : liste brute de tous les films « À voir » — aucun filtre, aucune fusion, doublons conservés
-        if (mode === "all") {
+        if (window.__picksMode === "all") {
           const raw = Object.keys(state.pickHistory || {})
             .filter((t) => (!state.seen.includes(t) || pickSeenRecent(t) || pickRatedRecent(t)) && (!state.ratings[t] || pickRatedRecent(t)))
             .sort((a, b) => pickProba(b) - pickProba(a) || (state.pickHistory[b] || 0) - (state.pickHistory[a] || 0));
@@ -840,6 +843,7 @@
             </div>`;
           loadPosters();
           loadDispo();
+          const __mbA = document.querySelector(".mbox"); if (__mbA) __mbA.scrollTop = __syP; // v102 : conserver la position dans la liste
           return;
         }
         const hasGenre = !!state.genre;
@@ -873,6 +877,7 @@
           </div>`;
         loadPosters();
         loadDispo();
+        const __mbP = document.querySelector(".mbox"); if (__mbP) __mbP.scrollTop = __syP; // v102 : conserver la position dans la liste après une bascule vu/pas vu ou une notation
       };
       window.closeAddModal = () => { document.getElementById("modal-root").innerHTML = ""; };
       window.openCatalogModal = () => {
