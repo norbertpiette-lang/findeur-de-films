@@ -234,7 +234,7 @@
         if (!l.some((x) => x.t === f.t)) { l.push(f); setAdopted(l); save(); schedulePush(); }
       };
 
-      let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, pickDel:{}, ratings:{}, pick:null };
+      let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, pickDel:{}, ratings:{}, siJetais:{}, pick:null };
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
       // v92 : l'envie ne dure que la séance en cours — nouvelle visite = envie neutre (aucun bonus tant que tu n'as pas choisi) ; l'envie survit aux rechargements de l'onglet (sessionStorage) mais pas à sa fermeture
       try { state.envie = sessionStorage.getItem("findeur-envie") || null; } catch (e) { state.envie = null; }
@@ -408,6 +408,63 @@
         h += `<button class="btn" style="padding:2px 8px;font-size:.75rem" title="${(state.comments[film.t] || {}).text ? "Modifier ton commentaire" : "Ajouter un commentaire personnel"}" onclick="addComment('${escAttr(film.t)}')">💬${(state.comments[film.t] || {}).text ? "✏️" : ""}</button></div>`;
         return h;
       };
+
+      // --- v104 : « Si j'étais… » — le jeu de portrait cinéphile (1ᵉʳ novembre 2026), propositions à noter de 👎 à ★★★ ---
+      // les notes (state.siJetais) se synchronisent dans notes.json via ghPutNotes/mergeNotes et servent à affiner le profil cinéphile
+      const SI_LABELS = ["Pas du tout moi", "Bof", "Ça me ressemble", "Exactement moi !"];
+      const SI_JETAIS = [
+        { id: "realisateur", cat: "Si j'étais un réalisateur…", label: "Gaspar Noé", why: "Vertige sensoriel, huis clos qui dérapent, audace formelle assumée — ton Noé préféré : Vortex." },
+        { id: "acteur", cat: "Si j'étais un acteur…", label: "Joaquin Phoenix", why: "Her « exceptionnel et visionnaire », Joker « descente aux enfers » — l'homme ordinaire qui bascule." },
+        { id: "actrice", cat: "Si j'étais une actrice…", label: "Kim Min-hee", why: "La muse de Park Chan-wook (Mademoiselle, « actrice exceptionnelle ») — une intensité qui ne montre rien et dit tout." },
+        { id: "film", cat: "Si j'étais un film…", label: "Triangle (Christopher Smith, 2009)", why: "Boucle cauchemardesque, « scénario top » — le condensé de tes amours. Candidat alternatif sérieux : Coherence." },
+        { id: "personnage", cat: "Si j'étais un personnage…", label: "Rick Deckard (Blade Runner, Harrison Ford)", why: "Le traqueur mélancolique d'une dystopie contemplative — ta propre réponse au jeu.", ok: true },
+        { id: "genre", cat: "Si j'étais un genre…", label: "Dystopie / aventure — montée en puissance progressive mais intense", why: "La tension qui grimpe par paliers, sans jamais s'agiter — ta propre réponse au jeu.", ok: true },
+        { id: "salle", cat: "Si j'étais une salle de cinéma…", label: "Le Max Linder", why: "Ta salle de référence — les deux claques récentes : Sirat et Joker.", ok: true },
+        { id: "replique", cat: "Si j'étais une réplique…", label: "« I've seen things you people wouldn't believe » — Roy Batty (Blade Runner)", why: "La mélancolie contemplative à l'état pur." },
+        { id: "fin", cat: "Si j'étais une fin…", label: "Celle qui recontextualise tout (Triangle, Oldboy, Coherence)", why: "Le twist qui explique tout — jamais celui qui n'explique rien." },
+      ];
+      const siStars = (id) => {
+        const r = (state.siJetais[id] || {}).v ?? null;
+        let h = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><div class="stars">`;
+        h += `<button class="${r === 0 ? "thumb-on" : ""}" title="${SI_LABELS[0]}" onclick="setSiRating('${id}',0)">👎</button>`;
+        for (let n = 1; n <= 3; n++) h += `<button class="${r !== null && r >= n ? "on" : ""}" title="${SI_LABELS[n]}" onclick="setSiRating('${id}',${n})">${r !== null && r >= n ? "★" : "☆"}</button>`;
+        h += `</div><span class="starlabel">${r !== null ? SI_LABELS[r] : "pas encore noté"}</span></div>`;
+        return h;
+      };
+      window.setSiRating = (id, v) => {
+        const cur = state.siJetais[id] || {};
+        if (cur.v === v) delete state.siJetais[id]; // second clic sur la même valeur : retire la note
+        else state.siJetais[id] = { v, at: Date.now() };
+        save(); schedulePush();
+        openSiModal(true); // rafraîchit la fenêtre en conservant le défilement (leçon v102)
+      };
+      const siModalHTML = () => `
+        <div class="mroot" onclick="if(event.target===this) closeSiModal()">
+          <div class="mbox" style="width:min(560px,94vw)">
+            <h2 style="margin:0 0 4px">🎭 Si j'étais… — ton portrait cinéphile</h2>
+            <p class="range" style="margin:0 0 12px">Le jeu de portrait du 1ᵉʳ novembre : note chaque proposition (👎/★/★★/★★★, un second clic sur la même valeur retire la note). Tes notes partent dans ton profil cinéphile via la synchro — elles aident à affiner les recommandations.</p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              ${SI_JETAIS.map((it) => `
+                <div class="notebox">
+                  <p style="margin:0;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">${esc(it.cat)}${it.ok ? ` <span class="chip green">confirmé par toi</span>` : ""}</p>
+                  <p style="margin:2px 0 4px;font-size:.92rem;font-weight:600">${esc(it.label)}</p>
+                  <p class="why" style="margin:0 0 8px">${esc(it.why)}</p>
+                  ${siStars(it.id)}
+                </div>`).join("")}
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:14px">
+              <button class="btn primary" onclick="closeSiModal()">Fermer</button>
+            </div>
+          </div>
+        </div>`;
+      window.openSiModal = (keepScroll) => {
+        const box = document.querySelector(".mbox");
+        const s = keepScroll && box ? box.scrollTop : 0; // leçon v102 : la position dans la fenêtre survit aux rafraîchissements internes (notation)
+        document.getElementById("modal-root").innerHTML = siModalHTML();
+        const nb = document.querySelector(".mbox");
+        if (nb && keepScroll) nb.scrollTop = s;
+      };
+      window.closeSiModal = () => { document.getElementById("modal-root").innerHTML = ""; };
 
       // Probabilité que le film plaise, d'après le profil cinéphile
       const proba = (f) => {
@@ -638,6 +695,13 @@
           if (!local || (c.at || 0) > (local.at || 0)) mergedC[t] = c;
         });
         state.comments = mergedC;
+        // v104 : fusion des notes « Si j'étais… » par horodatage, comme les notes de films
+        const mergedSi = { ...(state.siJetais || {}) };
+        Object.entries(remote.siJetais || {}).forEach(([k, e]) => {
+          const local = mergedSi[k];
+          if (!local || (e.at || 0) > (local.at || 0)) mergedSi[k] = e;
+        });
+        state.siJetais = mergedSi;
         recomputeSeen();
         purgeMojibake(); // assainir ce que la fusion vient de réimporter (encodages corrompus du serveur)
         save();
@@ -653,7 +717,7 @@
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = utf8B64(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, pickHistory: state.pickHistory, pickDel: state.pickDel, adopted: getAdopted(), catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
+        const content = utf8B64(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, siJetais: state.siJetais, pickHistory: state.pickHistory, pickDel: state.pickDel, adopted: getAdopted(), catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -1046,7 +1110,7 @@
         const app = document.getElementById("app");
         let h = `<h1><a href="#" onclick="reset();return false" title="Recommencer depuis le début" style="text-decoration:none;color:inherit">🎬 Findeur de Films</a></h1>
           <p class="sub">${esc(profilTxt || "Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.")}</p>
-          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button> <button class="btn primary" onclick="openPicksModal('all')" title="Tous mes films « À voir », sans aucun filtre">🎬 À voir (${pendingAll().length})</button></p>`;
+          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button> <button class="btn primary" onclick="openPicksModal('all')" title="Tous mes films « À voir », sans aucun filtre">🎬 À voir (${pendingAll().length})</button> <button class="btn" onclick="openSiModal()" title="Le jeu de portrait cinéphile — note les propositions pour affiner ton profil">🎭 Si j'étais…</button></p>`;
 
         if (state.etape === 0) {
           const b = budget();
@@ -1343,3 +1407,4 @@
     </script>
   </body>
 </html>
+
