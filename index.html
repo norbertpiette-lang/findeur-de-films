@@ -391,7 +391,6 @@
       window.removePick = (t) => { state.pickDel = state.pickDel || {}; state.pickDel[t] = Date.now(); delete state.pickHistory[t]; save(); schedulePush(); render(); if (window.__picksOpen) openPicksModal(window.__picksMode || "selection"); }; // v101 : retrait horodaté (tombstone pickDel), comme seenDel pour les films vus — sans cela, la fusion serveur ressuscitait le film retiré
       window.addComment = (t) => {
         const existing = (state.comments[t] || {}).text || "";
-        const v = window.prompt("Ton commentaire sur ce film (ce qui t'a plu ou déplu : ambiance, rythme, réalisation… — il affinera ton profil cinéphile) :", existing);
         if (v === null) return; // annulé
         if (v.trim()) state.comments[t] = { text: v.trim(), at: Date.now() };
         else delete state.comments[t];
@@ -653,7 +652,7 @@
       window.toggleIndispo = (t) => {
         if (isIndispo(t)) delete state.indispo[t];
         else { state.indispo[t] = Date.now(); setTimeout(() => { if (prunePicks()) { save(); schedulePush(); } window.__keepScroll = true; render(); maybeRefreshSeen(); }, PICK_DELAY); } // marqué « indisponible » : sortie automatique des suggestions et de « À voir » après 30 min
-        save(); schedulePush(); window.__keepScroll = true; render();
+        save(); schedulePush(); window.__keepScroll = true; render(); maybeRefreshSeen(); // v105 : rafraîchir aussi les fenêtres ouvertes (« À voir », « Vus ») pour basculer le bouton en « (annuler) »
       };
       // retour à l'étape 1 : ne réinitialise QUE la séance en cours — les données durables (vus, notes, commentaires, liste « À voir ») restent en local et à l'écran
       window.reset = () => { window.__jumpTop = true; state = { ...state, etape: 0, debutMin: null, coucheMin: null, noTime: false, genre: null, envie: null, ambianceNote: "", envieNote: "", filters: { big: false, plateformes: [] }, pick: null };
@@ -785,14 +784,13 @@
       window.pickFromHistory = (i) => {
         if (i === "" || i === null || i === undefined) return;
         const t = __histTitles[Number(i)];
-        const f = FILMS.find((x) => x.t === t) || { t, y: null };
+        const f = findFilm(t) || { t, y: null }; // v105 : chercher l'année aussi dans le pool du jour et le stock adopté, pas seulement le catalogue principal
         __addPicked = { t, y: f.y, src: "🎬 ton choix « À voir »" };
         const q = document.getElementById("add-q"); if (q) q.value = t;
         document.getElementById("add-picked").innerHTML = `<div class="picked">✅ Titre vérifié : <b>${esc(t)}</b>${f.y ? " (" + f.y + ")" : ""} — <small>🎬 ton choix « À voir »</small></div>`;
         document.getElementById("add-ok").disabled = false;
       };
       const cleanTitle = (t) => t.replace(/\s*\((?:film|movie)\)/i, "");
-      const titleYear = (t) => { const m = t.match(/\((\d{4})\)/); return { t: cleanTitle(t.replace(/\s*\(\d{4}\)\s*/, "")), y: m ? Number(m[1]) : null }; };
       window.renderAddStars = (sel) => {
         let h = "";
         [["👎", 0], ["☆", 1], ["☆☆", 2], ["☆☆☆", 3]].forEach(([lbl, v]) => {
@@ -1193,7 +1191,6 @@
           const f = state.pick, b = budget();
           const reperes = ALL_FILMS().filter((x) => x.g === f.g && state.seen.includes(x.t) && ((state.ratings[x.t] || {}).v || 0) >= 2).map((x) => x.t).slice(0, 3);
           h += `<div class="pickbox">
-            <div style="display:flex;flex-direction:row;gap:16px;align-items:flex-start;flex-wrap:wrap">
               <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">
                 <div class="poster" data-title="${esc(f.t)}" id="poster-pick" style="width:140px;height:210px;align-self:flex-start">🎞️</div>
                 <a class="trailer-link" href="https://www.youtube.com/results?search_query=${encodeURIComponent(f.t + " bande annonce")}" target="_blank" rel="noopener" title="Voir la bande-annonce de ${escAttr(f.t)}">▶ Bande-annonce</a>
@@ -1203,7 +1200,7 @@
                 <h2 style="margin:4px 0">${esc(f.t)}</h2>
                 <p class="meta">🎞️ ${f.y} · Réalisateur : ${esc(f.r)}</p>
                 <p id="pick-cast" style="margin:4px 0" class="meta">🎭 Chargement des acteurs…</p>
-                <p class="fit-ok">⏱️ ${fmtDur(f.dur)} · commence ${fmtH(state.debutMin)} → finit vers ${fmtH(state.debutMin + f.dur)} (fin prévue ${fmtH(state.debutMin + b)})</p>
+                <p class="fit-ok">${state.noTime ? `⏱️ ${fmtDur(f.dur)} · sans contrainte horaire ce soir` : `⏱️ ${fmtDur(f.dur)} · commence ${fmtH(state.debutMin)} → finit vers ${fmtH(state.debutMin + f.dur)} (fin prévue ${fmtH(state.debutMin + b)})`}</p>
               </div>
             </div>
             <p class="lbl" style="margin-top:12px">📖 Synopsis</p>
@@ -1407,4 +1404,3 @@
     </script>
   </body>
 </html>
-
