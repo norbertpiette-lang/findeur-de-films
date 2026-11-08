@@ -389,12 +389,42 @@
 
       // commentaire personnel : proposé à côté de la note partout où les étoiles apparaissent
       window.removePick = (t) => { state.pickDel = state.pickDel || {}; state.pickDel[t] = Date.now(); delete state.pickHistory[t]; save(); schedulePush(); render(); if (window.__picksOpen) openPicksModal(window.__picksMode || "selection"); }; // v101 : retrait horodaté (tombstone pickDel), comme seenDel pour les films vus — sans cela, la fusion serveur ressuscitait le film retiré
-      window.addComment = (t) => {
+      // v106 : fenêtre de commentaire intégrée à la page — window.prompt() est ignoré ou capricieux sur iOS Safari (iPhone)
+      window.openCommentModal = (t) => {
+        window.__commentBackSy = (document.querySelector(".mbox") || { scrollTop: 0 }).scrollTop; // position de la liste parente avant remplacement
+        window.__commentBack = window.__picksOpen ? "picks" : (window.__seenOpen ? "seen" : null); // ré-ouvrir la fenêtre d'origine à la fermeture
         const existing = (state.comments[t] || {}).text || "";
-        if (v === null) return; // annulé
-        if (v.trim()) state.comments[t] = { text: v.trim(), at: Date.now() };
-        else delete state.comments[t];
-        save(); schedulePush(); maybeRefreshSeen();
+        document.getElementById("modal-root").innerHTML = `
+          <div class="mroot" onclick="if(event.target===this) closeCommentModal()">
+            <div class="mbox" style="width:min(560px,96vw)">
+              <h2 style="margin:0 0 4px">💬 Ton commentaire</h2>
+              <p class="range" style="margin:0 0 12px"><b>${esc(t)}</b> — ce qui t'a plu ou déplu : ambiance, rythme, réalisation, acteurs, intrigue… Il affinera ton profil cinéphile.</p>
+              <textarea id="comment-text" rows="5" placeholder="Ce qui t'a plu ou déplu : ambiance, rythme, réalisation, acteurs, intrigue…"
+                style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;font-family:inherit;resize:vertical">${esc(existing)}</textarea>
+              <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;flex-wrap:wrap">
+                ${existing ? `<button class="btn" onclick="saveComment(true)" style="margin-right:auto">🗑️ Supprimer</button>` : ""}
+                <button class="btn" onclick="closeCommentModal()">Annuler</button>
+                <button class="btn primary" onclick="saveComment()">💾 Enregistrer</button>
+              </div>
+            </div>
+          </div>`;
+        const ta = document.getElementById("comment-text"); if (ta) { ta.focus(); try { ta.setSelectionRange((ta.value || "").length, (ta.value || "").length); } catch (e) {} }
+      };
+      window.closeCommentModal = () => {
+        document.getElementById("modal-root").innerHTML = "";
+        if (window.__commentBack === "picks") openPicksModal(window.__picksMode || "selection");
+        else if (window.__commentBack === "seen") openSeenModal();
+        const mb = document.querySelector(".mbox"); if (mb) mb.scrollTop = window.__commentBackSy || 0; // v102 : conserver la position dans la liste parente
+      };
+      window.saveComment = (del) => {
+        const t = window.__commentFor; if (!t) return;
+        const ta = document.getElementById("comment-text");
+        const v = ((ta || {}).value || "").trim();
+        if (del || !v) delete state.comments[t];
+        else state.comments[t] = { text: v, at: Date.now() };
+        save(); schedulePush();
+        closeCommentModal(); // ré-ouvre la fenêtre parente (« À voir », « Vus ») si c'était le cas
+        render(); // rafraîchir le bouton 💬✏️ de la carte sous la fenêtre
       };
       const stars = (film) => {
         const r = state.ratings[film.t]?.v ?? null;
@@ -404,7 +434,7 @@
           h += `<button class="${r !== null && r >= n ? "on" : ""}" title="${NOTE_LABELS[n]}" onclick="setRating('${escAttr(film.t)}',${n})">${r !== null && r >= n ? "★" : "☆"}</button>`;
         }
         h += `</div><span class="starlabel">${r !== null ? NOTE_LABELS[r] : "pas encore noté"}</span>`;
-        h += `<button class="btn" style="padding:2px 8px;font-size:.75rem" title="${(state.comments[film.t] || {}).text ? "Modifier ton commentaire" : "Ajouter un commentaire personnel"}" onclick="addComment('${escAttr(film.t)}')">💬${(state.comments[film.t] || {}).text ? "✏️" : ""}</button></div>`;
+        h += `<button class="btn" style="padding:2px 8px;font-size:.75rem" title="${(state.comments[film.t] || {}).text ? "Modifier ton commentaire" : "Ajouter un commentaire personnel"}" onclick="openCommentModal('${escAttr(film.t)}')">💬${(state.comments[film.t] || {}).text ? "✏️" : ""}</button></div>`;
         return h;
       };
 
@@ -761,7 +791,6 @@
       const purgePicks = () => {
         let changed = false;
         Object.keys(state.pickHistory || {}).forEach((t) => {
-          if (normTitle(t).startsWith("babylon")) { delete state.pickHistory[t]; changed = true; }
         });
         return changed;
       };
@@ -791,6 +820,7 @@
         document.getElementById("add-ok").disabled = false;
       };
       const cleanTitle = (t) => t.replace(/\s*\((?:film|movie)\)/i, "");
+      const titleYear = (t) => { const m = t.match(/\((\d{4})\)/); return { t: cleanTitle(t.replace(/\s*\(\d{4}\)\s*/, "")), y: m ? Number(m[1]) : null }; };
       window.renderAddStars = (sel) => {
         let h = "";
         [["👎", 0], ["☆", 1], ["☆☆", 2], ["☆☆☆", 3]].forEach(([lbl, v]) => {
@@ -1161,7 +1191,6 @@
           const isWE = [5, 6, 0].includes(new Date().getDay());
           let results = ALL_FILMS().filter(f =>
             f.g === state.genre &&
-            SELECTION_OK(f) &&
             !f.t.includes("(re-voir)") &&
             (!isIndispo(f.t) || pickIndispoRecent(f.t)) &&
             (!state.seen.includes(f.t) || pickSeenRecent(f.t))
@@ -1191,6 +1220,7 @@
           const f = state.pick, b = budget();
           const reperes = ALL_FILMS().filter((x) => x.g === f.g && state.seen.includes(x.t) && ((state.ratings[x.t] || {}).v || 0) >= 2).map((x) => x.t).slice(0, 3);
           h += `<div class="pickbox">
+            <div style="display:flex;flex-direction:row;gap:16px;align-items:flex-start;flex-wrap:wrap">
               <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">
                 <div class="poster" data-title="${esc(f.t)}" id="poster-pick" style="width:140px;height:210px;align-self:flex-start">🎞️</div>
                 <a class="trailer-link" href="https://www.youtube.com/results?search_query=${encodeURIComponent(f.t + " bande annonce")}" target="_blank" rel="noopener" title="Voir la bande-annonce de ${escAttr(f.t)}">▶ Bande-annonce</a>
