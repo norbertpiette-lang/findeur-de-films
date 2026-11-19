@@ -489,6 +489,22 @@
         { id: "replique", cat: "Si j'étais une réplique…", label: "« I've seen things you people wouldn't believe » — Roy Batty (Blade Runner)", why: "La mélancolie contemplative à l'état pur." },
         { id: "fin", cat: "Si j'étais une fin…", label: "Celle qui recontextualise tout (Triangle, Oldboy, Coherence)", why: "Le twist qui explique tout — jamais celui qui n'explique rien." },
       ];
+      // v111 : propositions « Si j'étais… » servies par sijetais.json (dépôt de données) — Vibe en ajoute au fil de l'évolution du portrait SANS republier l'app ; la liste en dur ci-dessus reste le secours hors-ligne ; les votes (state.siJetais, clés = id) sont conservés tels quels
+      let SI_LIST = SI_JETAIS;
+      try { const sic = JSON.parse(localStorage.getItem("findeur-sijetais") || "null"); if (Array.isArray(sic) && sic.length) SI_LIST = sic; } catch (e) {}
+      const loadSiJetaisList = async () => {
+        try {
+          const tok = getToken();
+          if (!tok) return; // dépôt privé : sans token, on garde la copie locale du dernier chargement
+          const r = await fetch(`https://api.github.com/repos/${SYNC.owner}/${SYNC.dataRepo}/contents/sijetais.json?ref=${SYNC.branch}`, { headers: { Authorization: "Bearer " + tok, Accept: "application/vnd.github+json" } });
+          if (!r.ok) return;
+          const j = await r.json();
+          const bin = atob((j.content || "").replace(/\s/g, ""));
+          const txt = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+          const arr = JSON.parse(txt);
+          if (Array.isArray(arr) && arr.length) { SI_LIST = arr; try { localStorage.setItem("findeur-sijetais", JSON.stringify(arr)); } catch (e) {} }
+        } catch (e) {}
+      };
       const siStars = (id) => {
         const r = (state.siJetais[id] || {}).v ?? null;
         let h = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><div class="stars">`;
@@ -508,9 +524,9 @@
         <div class="mroot" onclick="if(event.target===this) closeSiModal()">
           <div class="mbox" style="width:min(560px,94vw)">
             <h2 style="margin:0 0 4px">🎭 Si j'étais… — ton portrait cinéphile</h2>
-            <p class="range" style="margin:0 0 12px">Le jeu de portrait du 1ᵉʳ novembre : note chaque proposition (👎/★/★★/★★★, un second clic sur la même valeur retire la note). Tes notes partent dans ton profil cinéphile via la synchro — elles aident à affiner les recommandations.</p>
+            <p class="range" style="margin:0 0 12px">Le jeu de portrait : note chaque proposition (👎/★/★★/★★★, un second clic sur la même valeur retire la note). De nouvelles propositions arrivent au fil de l'évolution de ton portrait cinéphile. Tes notes partent dans ton profil via la synchro — elles aident à affiner les recommandations.</p>
             <div style="display:flex;flex-direction:column;gap:10px">
-              ${SI_JETAIS.map((it) => `
+              ${SI_LIST.map((it) => `
                 <div class="notebox">
                   <p style="margin:0;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">${esc(it.cat)}${it.ok ? ` <span class="chip green">confirmé par toi</span>` : ""}</p>
                   <p style="margin:2px 0 4px;font-size:.92rem;font-weight:600">${esc(it.label)}</p>
@@ -1359,7 +1375,7 @@
           h += `<div class="dispo" style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <p class="sessionline" style="margin:0">${syncStatus}</p>
             <button class="btn" onclick="openSyncModal()" title="Synchronisation et réglages (sync manuelle, token, clé TMDB)">⚙️ Synchronisation & réglages</button>
-            <span class="range" style="margin:0;margin-left:auto" title="Version de l'app — si ce numéro ne correspond pas à la dernière version publiée, ton navigateur garde une ancienne version en cache (Safari Mac : Cmd+Option+R pour recharger)"> v110</span>
+            <span class="range" style="margin:0;margin-left:auto" title="Version de l'app — si ce numéro ne correspond pas à la dernière version publiée, ton navigateur garde une ancienne version en cache (Safari Mac : Cmd+Option+R pour recharger)"> v111</span>
           </div></footer>`;
 
         // anti-saut : conserver le défilement pour toute action ; seul un vrai changement d'écran remonte en haut
@@ -1533,6 +1549,7 @@
       loadPool().then(() => render()).catch(() => {});
       loadProfil().then(() => render()).catch(() => {});
       loadQuestions().then(() => render()).catch(() => {}); // v110 : nouvelles questions d'affinage à chaque ouverture (rafraîchit le compteur du bouton 🧭)
+      loadSiJetaisList().then(() => render()).catch(() => {}); // v111 : propositions « Si j'étais… » rafraîchies à chaque ouverture (sijetais.json, secours = liste en dur)
       render();
       initSync();
     </script>
