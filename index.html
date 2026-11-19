@@ -223,6 +223,25 @@
           poolCache = Array.isArray(arr) ? arr : [];
         } catch (e) { poolCache = []; }
       };
+      // v110 : questions récurrentes d'affinage du portrait — servies par questions.json (dépôt de données privé), Vibe en ajoute régulièrement SANS republier l'app ; les réponses partent dans notes.json (champ qa) comme les notes de films
+      let QUESTIONS = [];
+      try { QUESTIONS = JSON.parse(localStorage.getItem("findeur-questions") || "[]") || []; } catch (e) {}
+      const loadQuestions = async () => {
+        try {
+          const tok = getToken();
+          if (!tok) return; // dépôt privé : sans token, on garde la copie locale du dernier chargement
+          const r = await fetch(`https://api.github.com/repos/${SYNC.owner}/${SYNC.dataRepo}/contents/questions.json?ref=${SYNC.branch}`, { headers: { Authorization: "Bearer " + tok, Accept: "application/vnd.github+json" } });
+          if (!r.ok) return;
+          const j = await r.json();
+          const bin = atob((j.content || "").replace(/\s/g, ""));
+          const txt = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+          const arr = JSON.parse(txt);
+          if (Array.isArray(arr) && arr.length) { QUESTIONS = arr; try { localStorage.setItem("findeur-questions", JSON.stringify(arr)); } catch (e) {} }
+        } catch (e) {}
+      };
+      const qAnswer = (id) => { const a = (state.qa || {})[id]; return a && a.v !== undefined && a.v !== null ? a : null; };
+      const pendingQuestions = () => QUESTIONS.filter((q) => q && q.id && q.cat && q.q && !qAnswer(q.id));
+      const answeredQuestions = () => QUESTIONS.filter((q) => q && q.id && qAnswer(q.id));
       const POOL_SEEN_KEY = "findeur-pool-seen";
       const getPoolSeen = () => { try { return JSON.parse(localStorage.getItem(POOL_SEEN_KEY) || "[]"); } catch (e) { return []; } };
       const addPoolSeen = (t) => { try { const l = getPoolSeen(); if (!l.includes(t)) { l.push(t); localStorage.setItem(POOL_SEEN_KEY, JSON.stringify(l)); } } catch (e) {} };
@@ -244,7 +263,7 @@
         if (!l.some((x) => x.t === f.t)) { l.push(f); setAdopted(l); save(); schedulePush(); }
       };
 
-      let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, pickDel:{}, ratings:{}, siJetais:{}, pick:null };
+      let state = { etape:0, debutMin:null, coucheMin:null, noTime:false, genre:null, envie:null, ambianceNote:"", envieNote:"", filters:{big:false, plateformes:[]}, seen:[], seenMap:{}, seenDel:{}, indispo:{}, comments:{}, pickHistory:{}, pickDel:{}, ratings:{}, siJetais:{}, qa:{}, pick:null }; // v110 : qa = réponses aux questions d'affinage (v 0-3, ou "na" = ne sais pas)
       try { const saved = JSON.parse(localStorage.getItem(LS) || "null"); if (saved) state = Object.assign(state, saved, {pick:null}); } catch (e) {}
       // v92 : l'envie ne dure que la séance en cours — nouvelle visite = envie neutre (aucun bonus tant que tu n'as pas choisi) ; l'envie survit aux rechargements de l'onglet (sessionStorage) mais pas à sa fermeture
       try { state.envie = sessionStorage.getItem("findeur-envie") || null; } catch (e) { state.envie = null; }
@@ -513,6 +532,62 @@
       };
       window.closeSiModal = () => { document.getElementById("modal-root").innerHTML = ""; };
 
+      // v110 : fenêtre « Questions d'affinage » — chaque affirmation se note de 👎 à ★★★, ou « Je ne sais pas » ; les réponses partent dans notes.json (qa) et affinent le portrait cinéphile
+      const Q_LABELS = ["Pas du tout moi", "Bof", "Ça me ressemble", "Exactement moi !"];
+      const qStars = (id) => {
+        const a = qAnswer(id);
+        const r = a ? a.v : null;
+        let h = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><div class="stars">`;
+        h += `<button class="${r === 0 ? "thumb-on" : ""}" title="Pas du tout moi" onclick="setQRating('${id}',0)">👎</button>`;
+        for (let n = 1; n <= 3; n++) h += `<button class="${r !== null && r >= n ? "on" : ""}" title="${Q_LABELS[n]}" onclick="setQRating('${id}',${n})">${r !== null && r >= n ? "★" : "☆"}</button>`;
+        h += `</div><button class="btn${r === "na" ? " vu-on" : ""}" title="Pas d'avis — la réponse sera enregistrée comme « ne sais pas » dans le portrait" onclick="setQRating('${id}','na')">🤷 Je ne sais pas</button>`;
+        h += `<span class="starlabel">${r === "na" ? "noté : ne sais pas" : r !== null ? Q_LABELS[r] : "pas encore noté"}</span></div>`;
+        return h;
+      };
+      const qModalHTML = () => {
+        const pend = pendingQuestions(), done = answeredQuestions();
+        return `
+        <div class="mroot" onclick="if(event.target===this) closeQModal()">
+          <div class="mbox" style="width:min(640px,94vw)">
+            <h2 style="margin:0 0 4px">🧭 Questions pour affiner ton portrait</h2>
+            <p class="range" style="margin:0 0 12px">De nouvelles questions arrivent régulièrement, ajoutées au fil de ton activité par Vibe. Note chaque affirmation de 👎 à ★★★, ou « Je ne sais pas ». Tes réponses partent dans ton profil cinéphile via la synchro et affinent les recommandations ; tout se modifie ci-dessous, même une réponse déjà donnée.</p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              ${pend.length ? pend.map((q) => `
+                <div class="notebox" style="border-color:#b45309;background:#1a0f05">
+                  <p style="margin:0;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">${esc(q.cat)} <span class="chip amber">à noter</span></p>
+                  <p style="margin:4px 0 8px;font-size:.92rem;font-weight:600">${esc(q.q)}</p>
+                  ${qStars(q.id)}
+                </div>`).join("") : `<div class="picked">✅ Aucune question en attente — ton portrait est à jour. ${done.length ? `Tes ${done.length} réponse${done.length > 1 ? "s" : ""} déjà donnée${done.length > 1 ? "s" : ""} restent modifiables ci-dessous.` : "De nouvelles arriveront prochainement."}</div>`}
+              ${done.length ? done.map((q) => `
+                <div class="notebox" style="opacity:.85">
+                  <p style="margin:0;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">${esc(q.cat)} ${qAnswer(q.id) && qAnswer(q.id).v === "na" ? `<span class="chip">🤷 ne sais pas</span>` : `<span class="chip green">${esc(Q_LABELS[qAnswer(q.id).v] || "")}</span>`}</p>
+                  <p style="margin:4px 0 8px;font-size:.88rem">${esc(q.q)}</p>
+                  ${qStars(q.id)}
+                </div>`).join("") : ""}
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:14px">
+              <button class="btn primary" onclick="closeQModal()">Fermer</button>
+            </div>
+          </div>
+        </div>`;
+      };
+      window.openQModal = (keepScroll) => {
+        const box = document.querySelector(".mbox");
+        const s = keepScroll && box ? box.scrollTop : 0; // leçon v102 : la position dans la fenêtre survit aux rafraîchissements internes (notation)
+        document.getElementById("modal-root").innerHTML = qModalHTML();
+        const nb = document.querySelector(".mbox");
+        if (nb && keepScroll) nb.scrollTop = s;
+      };
+      window.closeQModal = () => { document.getElementById("modal-root").innerHTML = ""; };
+      window.setQRating = (id, v) => {
+        state.qa = state.qa || {};
+        const cur = state.qa[id] || {};
+        if (cur.v === v) delete state.qa[id]; // second clic sur la même valeur : retire la réponse, la question redevient « à noter »
+        else state.qa[id] = { v, at: Date.now() };
+        save(); schedulePush();
+        openQModal(true); // rafraîchit la fenêtre en conservant le défilement (leçon v102)
+      };
+
       // Probabilité que le film plaise, d'après le profil cinéphile
       const proba = (f) => {
         // v91 : poids hybrides — chaque signal (genre, tag, réalisateur) part d'un poids de départ (prior), corrigé par tes notes ; la correction grossit avec le nombre de notes portant ce signal (confiance pleine à 3 notes) ; c'est cette même formule qui produit le % des e-mails hebdo
@@ -749,6 +824,13 @@
           if (!local || (e.at || 0) > (local.at || 0)) mergedSi[k] = e;
         });
         state.siJetais = mergedSi;
+        // v110 : fusion des réponses aux questions d'affinage par horodatage, comme les notes « Si j'étais… »
+        const mergedQa = { ...(state.qa || {}) };
+        Object.entries(remote.qa || {}).forEach(([k, e]) => {
+          const local = mergedQa[k];
+          if (!local || (e.at || 0) > (local.at || 0)) mergedQa[k] = e;
+        });
+        state.qa = mergedQa;
         recomputeSeen();
         purgeMojibake(); // assainir ce que la fusion vient de réimporter (encodages corrompus du serveur)
         save();
@@ -764,7 +846,7 @@
         return notes;
       };
       const ghPutNotes = async (sha) => {
-        const content = utf8B64(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, siJetais: state.siJetais, pickHistory: state.pickHistory, pickDel: state.pickDel, adopted: getAdopted(), catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
+        const content = utf8B64(JSON.stringify({ ratings: state.ratings, seen: state.seen, seenMap: state.seenMap, seenDel: state.seenDel, indispo: state.indispo, comments: state.comments, siJetais: state.siJetais, qa: state.qa, pickHistory: state.pickHistory, pickDel: state.pickDel, adopted: getAdopted(), catalogTitles: FILMS.map((f) => f.t), poolSeen: getPoolSeen(), prefs: { genre: state.genre, envie: state.envie, ambianceNote: state.ambianceNote || "", envieNote: state.envieNote || "" }, updatedAt: new Date().toISOString() }, null, 2));
         const res = await fetch(notesURL(), {
           method: "PUT",
           headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -1157,7 +1239,7 @@
         const app = document.getElementById("app");
         let h = `<h1><a href="#" onclick="reset();return false" title="Recommencer depuis le début" style="text-decoration:none;color:inherit">🎬 Findeur de Films</a></h1>
           <p class="sub">${esc(profilTxt || "Dystopies, huis clos, horreur d'ambiance, Park Chan-wook & Noé, comédies noires récentes. Pas d'animation · comédies en VF · disponibilités à confirmer sur l'app.")}</p>
-          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button> <button class="btn primary" onclick="openPicksModal('all')" title="Tous mes films « À voir », sans aucun filtre">🎬 À voir (${pendingAll().length})</button> <button class="btn" onclick="openSiModal()" title="Le jeu de portrait cinéphile — note les propositions pour affiner ton profil">🎭 Si j'étais…</button></p>`;
+          <p style="margin-top:8px"><button class="btn primary" onclick="openAddModal()">➕ J'ai vu un film</button> <button class="btn primary" onclick="openPicksModal('all')" title="Tous mes films « À voir », sans aucun filtre">🎬 À voir (${pendingAll().length})</button> <button class="btn" onclick="openSiModal()" title="Le jeu de portrait cinéphile — note les propositions pour affiner ton profil">🎭 Si j'étais…</button> <button class="btn${pendingQuestions().length ? " primary" : ""}" onclick="openQModal()" title="Questions ajoutées régulièrement par Vibe pour affiner ton portrait cinéphile — réponses par note ou « je ne sais pas »">🧭 Affinage${pendingQuestions().length ? " (" + pendingQuestions().length + " à noter)" : ""}</button></p>`;
 
         if (state.etape === 0) {
           const b = budget();
@@ -1277,7 +1359,7 @@
           h += `<div class="dispo" style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <p class="sessionline" style="margin:0">${syncStatus}</p>
             <button class="btn" onclick="openSyncModal()" title="Synchronisation et réglages (sync manuelle, token, clé TMDB)">⚙️ Synchronisation & réglages</button>
-            <span class="range" style="margin:0;margin-left:auto" title="Version de l'app — si ce numéro ne correspond pas à la dernière version publiée, ton navigateur garde une ancienne version en cache (Safari Mac : Cmd+Option+R pour recharger)">v109</span>
+            <span class="range" style="margin:0;margin-left:auto" title="Version de l'app — si ce numéro ne correspond pas à la dernière version publiée, ton navigateur garde une ancienne version en cache (Safari Mac : Cmd+Option+R pour recharger)"> v110</span>
           </div></footer>`;
 
         // anti-saut : conserver le défilement pour toute action ; seul un vrai changement d'écran remonte en haut
@@ -1450,6 +1532,7 @@
       (() => { try { const p = new URLSearchParams(location.search); const add = p.get("add"); if (add) { const t = add.trim(); if (t && !state.seen.includes(t)) { state.pickHistory[t] = state.pickHistory[t] || Date.now(); if (isPoolFilm(t)) adopt(t); save(); schedulePush(); } history.replaceState(null, "", location.pathname); setTimeout(() => { openPicksModal("all"); if (!getToken()) { const b = document.querySelector(".mbox"); if (b) b.insertAdjacentHTML("afterbegin", "<div class='picked' style='border-color:#b45309;background:#451a03;color:#fbbf24;margin-bottom:10px'>🌙 Bien ajouté à « À voir » — mais ce navigateur est hors ligne : l'ajout est enregistré uniquement sur cet appareil. Pour le synchroniser avec GitHub et tes autres navigateurs : bouton ⚙️ Synchronisation & réglages en bas de page → colle ton token GitHub (il est mémorisé séparément par chaque navigateur).</div>"); } }, 500); } } catch (e) {} })();
       loadPool().then(() => render()).catch(() => {});
       loadProfil().then(() => render()).catch(() => {});
+      loadQuestions().then(() => render()).catch(() => {}); // v110 : nouvelles questions d'affinage à chaque ouverture (rafraîchit le compteur du bouton 🧭)
       render();
       initSync();
     </script>
