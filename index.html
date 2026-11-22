@@ -1145,6 +1145,12 @@
             </div>
           </div>`;
       };
+      // v113 : remplacement du token TOUJOURS possible — si le navigateur garde un token expiré (refusé en 401), le champ de collage s'affiche d'office (avant : « ✅ Token actif » sans aucun champ, impossible de remplacer un token stocké mais refusé)
+      const ghTokenInputHTML = () => `<div style="display:flex;gap:6px;flex-wrap:wrap">
+                     <input type="password" id="gh-token" placeholder="github_pat_… (droits Contents: read & write, dépôt findeur-films-data)" style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" />
+                     <button class="btn primary" onclick="saveToken(document.getElementById('gh-token').value)">Activer la sync</button>
+                   </div>`;
+      window.toggleTokenInput = () => { const el = document.getElementById("gh-replace"); if (el) { el.style.display = el.style.display === "none" ? "block" : "none"; const inp = document.getElementById("gh-token"); if (el.style.display !== "none" && inp) inp.focus(); } };
       window.openSyncModal = () => {
         document.getElementById("modal-root").innerHTML = `
           <div class="mroot" onclick="if(event.target===this) closeAddModal()">
@@ -1152,13 +1158,12 @@
               <h2 style="margin:0 0 4px">⚙️ Synchronisation & réglages</h2>
               <p class="sessionline" style="margin:0 0 12px">${syncStatus}</p>
               <p class="lbl" style="margin-top:14px">☁️ Token GitHub</p>
-              ${getToken()
+              ${getToken() && !syncStatus.includes("HTTP 401")
                 ? `<p class="sessionline">✅ Token actif dans ce navigateur.</p>
-                   <p style="margin:8px 0 0"><button class="btn" onclick="syncNow()">🔄 Synchroniser maintenant</button></p>`
-                : `<div style="display:flex;gap:6px;flex-wrap:wrap">
-                     <input type="password" id="gh-token" placeholder="github_pat_… (droits Contents: read & write, dépôt findeur-films-data)" style="flex:1;min-width:220px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:.8rem" />
-                     <button class="btn primary" onclick="saveToken(document.getElementById('gh-token').value)">Activer la sync</button>
-                   </div>`}
+                   <p style="margin:8px 0 0"><button class="btn" onclick="syncNow()">🔄 Synchroniser maintenant</button> <button class="btn" onclick="toggleTokenInput()" title="Token expiré ou refusé ? Colle-en un nouveau : il remplacera l'ancien">🔁 Remplacer le token</button></p>
+                   <div id="gh-replace" style="display:none;margin-top:10px">${ghTokenInputHTML()}</div>`
+                : `${syncStatus.includes("HTTP 401") ? `<p class="sessionline" style="color:#fbbf24">⚠️ Token refusé par GitHub (401 : expiré ou révoqué). Remplace-le : colle un nouveau token ci-dessous, puis « Activer la sync ».</p>` : ""}
+                   ${ghTokenInputHTML()}`}
               <p class="lbl" style="margin-top:14px">🖼️ Clé API TMDB (affiches)</p>
               <p class="sessionline">${getTmdbKey() === TMDB_KEY ? "✅ Clé par défaut active" : "Clé personnalisée enregistrée"} — laisse vide pour la clé intégrée.</p>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1382,7 +1387,7 @@
           h += `<div class="dispo" style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <p class="sessionline" style="margin:0">${syncStatus}</p>
             <button class="btn" onclick="openSyncModal()" title="Synchronisation et réglages (sync manuelle, token, clé TMDB)">⚙️ Synchronisation & réglages</button>
-            <span class="range" style="margin:0;margin-left:auto" title="Version de l'app — si ce numéro ne correspond pas à la dernière version publiée, ton navigateur garde une ancienne version en cache (Safari Mac : Cmd+Option+R pour recharger)"> v112</span>
+            <span class="range" style="margin:0;margin-left:auto" title="Version de l'app — si ce numéro ne correspond pas à la dernière version publiée, ton navigateur garde une ancienne version en cache (Safari Mac : Cmd+Option+R pour recharger)"> v113</span>
           </div></footer>`;
 
         // anti-saut : conserver le défilement pour toute action ; seul un vrai changement d'écran remonte en haut
